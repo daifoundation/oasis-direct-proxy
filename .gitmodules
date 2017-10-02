@@ -1,3 +1,12 @@
 [submodule "lib/ds-test"]
 	path = lib/ds-test
 	url = https://github.com/dapphub/ds-test
+[submodule "lib/maker-otc"]
+	path = lib/maker-otc
+	url = git@github.com:makerdao/maker-otc.git
+[submodule "lib/sai"]
+	path = lib/sai
+	url = git@github.com:makerdao/sai.git
+[submodule "lib/ds-thing"]
+	path = lib/ds-thing
+	url = git@github.com:dapphub/ds-thing.git
