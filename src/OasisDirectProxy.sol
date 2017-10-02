@@ -1,6 +1,5 @@
 pragma solidity ^0.4.16;
 
-import "ds-test/test.sol";
 import "ds-thing/thing.sol";
 
 contract OtcInterface {
@@ -50,7 +49,7 @@ contract PipInterface {
     function read() returns (bytes32);
 }
 
-contract OasisDirectProxy is DSThing, DSTest {
+contract OasisDirectProxy is DSThing {
     address eth;
     address sai;
 
