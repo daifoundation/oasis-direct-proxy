@@ -32,11 +32,14 @@ contract OasisDirectProxyTest is SaiTestBase {
     function testProxySellAll() {
         gem.mint(20 ether);
         createOffers(1, 3200 ether, 10 ether);
-        createOffers(1, 2900 ether, 10 ether);
+        createOffers(1, 2800 ether, 10 ether);
         sai.mint(4000 ether);
         sai.transfer(proxy, 4000 ether);
-        var buyAmt = proxy.sellAll(OtcInterface(otc), TokenInterface(gem), TokenInterface(sai), 4000 ether);
-        assertEq(buyAmt, 10 ether * 2900 / 2900 + 10 ether * 1100 / 3200);
+        uint startGas = msg.gas;
+        var buyAmt = proxy.sellAllAmount(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(gem));
+        uint endGas = msg.gas;
+        log_named_uint('Gas', startGas - endGas);
+        assertEq(buyAmt, 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200);
     }
 
     function testProxyMarginTradeOffersSamePrice() {
