@@ -12,7 +12,9 @@ contract TokenInterface {
     function balanceOf(address) returns (uint);
     function trust(address, bool);
     function approve(address, uint);
-    function deposit(uint);
+    function transfer(address,uint);
+    function deposit() payable;
+    function withdraw(uint);
 }
 
 contract TubInterface {
@@ -41,16 +43,45 @@ contract OasisDirectProxy is DSThing {
     address eth;
     address sai;
 
+    function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
+        wethToken.withdraw(wethAmt);
+        assert(msg.sender.call.value(wethAmt)());
+    }
+
     function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken) public returns (uint buyAmt) {
-        // payToken.trust(otc, true);
         payToken.approve(otc, uint(-1));
         buyAmt = otc.sellAllAmount(payToken, payAmt, buyToken);
+        buyToken.transfer(msg.sender, buyAmt);
+    }
+
+    function sellAllAmountPayEth(OtcInterface otc, TokenInterface wethToken, TokenInterface buyToken) public payable returns (uint buyAmt) {
+        wethToken.deposit.value(msg.value)();
+        buyAmt = sellAllAmount(otc, wethToken, msg.value, buyToken);
+    }
+
+    function sellAllAmountBuyEth(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface wethToken) public returns (uint wethAmt) {
+        payToken.approve(otc, uint(-1));
+        wethAmt = otc.sellAllAmount(payToken, payAmt, wethToken);
+        withdrawAndSend(wethToken, wethAmt);
     }
 
     function buyAllAmount(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken) public returns (uint payAmt) {
-        // payToken.trust(otc, true);
         payToken.approve(otc, uint(-1));
         payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken);
+        buyToken.transfer(msg.sender, buyAmt);
+    }
+
+    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken) public payable returns (uint wethAmt) {
+        // In this case user needs to send more ETH than a estimated value, then contract will send back the rest
+        wethToken.deposit.value(msg.value)();
+        wethAmt = buyAllAmount(otc, buyToken, buyAmt, wethToken);
+        withdrawAndSend(wethToken, sub(msg.value, wethAmt));
+    }
+
+    function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken) public returns (uint payAmt) {
+        payToken.approve(otc, uint(-1));
+        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken);
+        withdrawAndSend(wethToken, wethAmt);
     }
 
     function marginTrade(uint amount, uint leverage, TubInterface tub, OtcInterface otc) public returns (bytes32 cup) {
@@ -86,4 +117,6 @@ contract OasisDirectProxy is DSThing {
         tub.join(amount); // Convert last WETH to SKR
         tub.lock(cup, rmul(tub.per(), amount)); // Lock last SKR
     }
+
+    function() payable {}
 }
