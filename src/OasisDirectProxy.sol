@@ -84,10 +84,9 @@ contract OasisDirectProxy is DSThing {
         withdrawAndSend(wethToken, wethAmt);
     }
 
-    function marginTrade(uint amount, uint leverage, TubInterface tub, OtcInterface otc) public returns (bytes32 cup) {
-        // tub.gem().trust(tub, true);
-        // tub.skr().trust(tub, true);
-        // tub.sai().trust(otc, true);
+    function marginTrade(uint leverage, TubInterface tub, OtcInterface otc) public payable returns (bytes32 cup) {
+        uint amount = msg.value;
+        tub.gem().deposit.value(amount)();
         tub.gem().approve(tub, uint(-1));
         tub.skr().approve(tub, uint(-1));
         tub.sai().approve(otc, uint(-1));

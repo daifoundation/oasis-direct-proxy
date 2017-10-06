@@ -23,25 +23,40 @@ contract WETH is DSToken {
 contract OasisDirectProxyTest is SaiTestBase {
     OasisDirectProxy proxy;
     MatchingMarket otc;
-    WETH weth;
+    WETH gem;
 
     function setUp() public {
-        super.setUp();
-        weth = new WETH();
+        gem = new WETH();
+        sai = new DSToken("SAI");
+        sin = new DSToken("SIN");
+        skr = new DSToken("SKR");
+        tag = new DSValue();
+        vox = new SaiVox();
+        tap = new SaiTap();
+        tub = new SaiTub(sai, sin, skr, gem, tag, vox, tap);
+        top = new SaiTop(tub, tap);
+        tap.turn(tub);
+        dad = new DSGuard();
+        mom = new SaiMom(tub, tap, vox);
+        super.configureAuth();
+        sai.trust(tub, true);
+        skr.trust(tub, true);
+        gem.trust(tub, true);
+        sai.trust(tap, true);
+        skr.trust(tap, true);
+        
         proxy = new OasisDirectProxy();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(gem, sai);
-        otc.addTokenPairWhitelist(weth, sai);
         gem.trust(otc, true);
         sai.trust(otc, true);
         mom.setHat(1000000 ether);
         mom.setMat(ray(1.5 ether));
         tag.poke(bytes32(300 ether));
-        gem.burn(100 ether);
     }
 
     function createOffers(uint oQuantity, uint saiAmount, uint gemAmount) public {
-        for(uint i = 0; i < oQuantity; i ++) {
+        for (uint i = 0; i < oQuantity; i ++) {
             otc.offer(gemAmount / oQuantity, gem, saiAmount / oQuantity, sai, 0);
         }
     }
@@ -64,11 +79,11 @@ contract OasisDirectProxyTest is SaiTestBase {
     function testProxySellAllPayEth() public {
         uint initialBalance = this.balance;
         sai.mint(6000 ether);
-        otc.offer(3200 ether, sai, 10 ether, weth, 0);
-        otc.offer(2800 ether, sai, 10 ether, weth, 0);
+        otc.offer(3200 ether, sai, 10 ether, gem, 0);
+        otc.offer(2800 ether, sai, 10 ether, gem, 0);
         assertEq(sai.balanceOf(this), 0);
         uint startGas = msg.gas;
-        uint buyAmt = proxy.sellAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(weth), TokenInterface(sai));
+        uint buyAmt = proxy.sellAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(gem), TokenInterface(sai));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, 3200 ether * 10 / 10 + 2800 ether * 5 / 10);
@@ -77,15 +92,14 @@ contract OasisDirectProxyTest is SaiTestBase {
     }
 
     function testProxySellAllBuyEth() public {
-        weth.deposit.value(20 ether)();
-        weth.approve(otc, uint(-1));
-        otc.offer(10 ether, weth, 3200 ether, sai, 0);
-        otc.offer(10 ether, weth, 2800 ether, sai, 0);
+        gem.deposit.value(20 ether)();
+        otc.offer(10 ether, gem, 3200 ether, sai, 0);
+        otc.offer(10 ether, gem, 2800 ether, sai, 0);
         uint initialBalance = this.balance;
         sai.mint(4000 ether);
         sai.transfer(proxy, 4000 ether);
         uint startGas = msg.gas;
-        uint buyAmt = proxy.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(weth));
+        uint buyAmt = proxy.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(gem));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200);
@@ -110,26 +124,25 @@ contract OasisDirectProxyTest is SaiTestBase {
     function testProxyBuyAllBuyEth() public {
         uint initialBalance = this.balance;
         sai.mint(6000 ether);
-        otc.offer(3200 ether, sai, 10 ether, weth, 0);
-        otc.offer(2800 ether, sai, 10 ether, weth, 0);
+        otc.offer(3200 ether, sai, 10 ether, gem, 0);
+        otc.offer(2800 ether, sai, 10 ether, gem, 0);
         assertEq(sai.balanceOf(this), 0);
         uint startGas = msg.gas;
-        uint payAmt = proxy.buyAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(weth));
+        uint payAmt = proxy.buyAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(gem));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(this.balance, initialBalance - payAmt);
     }
 
     function testProxyBuyAllPayEth() public {
-        weth.deposit.value(20 ether)();
-        weth.approve(otc, uint(-1));
-        otc.offer(10 ether, weth, 3200 ether, sai, 0);
-        otc.offer(10 ether, weth, 2800 ether, sai, 0);
+        gem.deposit.value(20 ether)();
+        otc.offer(10 ether, gem, 3200 ether, sai, 0);
+        otc.offer(10 ether, gem, 2800 ether, sai, 0);
         uint initialBalance = this.balance;
         sai.mint(4400 ether);
         sai.transfer(proxy, 4400 ether);
         uint startGas = msg.gas;
-        uint sellAmt = proxy.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(sai));
+        uint sellAmt = proxy.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(gem), 15 ether, TokenInterface(sai));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(sellAmt, 2800 ether * 10 / 10 + 3200 ether * 5 / 10);
@@ -139,16 +152,15 @@ contract OasisDirectProxyTest is SaiTestBase {
     function testProxyMarginTradeOffersSamePrice() public {
         uint dif = 0;
         for (uint i = 1; i <= 30; i++) {
-            gem.mint(200 ether);
+            gem.mint(100 ether);
             createOffers(i, 30000 ether, 100 ether); // Price: 300 SAI/ETH
             dif = 100 ether - (100 ether / i) * i;
             if (dif > 0) {
                 createOffers(1, 300 * dif, dif);
             }
-            assertEq(gem.balanceOf(this), 100 ether);
-            gem.transfer(proxy, 100 ether);
+            assertEq(gem.balanceOf(this), 0);
             uint startGas = msg.gas;
-            var cup = proxy.marginTrade(100 ether, 2 ether, TubInterface(tub), OtcInterface(otc));
+            var cup = proxy.marginTrade.value(100 ether)(2 ether, TubInterface(tub), OtcInterface(otc));
             uint endGas = msg.gas;
             log_named_uint('# Orders', i);
             log_named_uint('Gas', startGas - endGas);
@@ -158,15 +170,14 @@ contract OasisDirectProxyTest is SaiTestBase {
     }
 
     function testProxyMarginTradeOffersDifferentPrices4Orders() public {
-        gem.mint(200 ether);
+        gem.mint(100 ether);
         createOffers(1, 8990 ether, 30 ether);
         createOffers(1, 13000 ether, 40 ether);
         createOffers(1, 3100 ether, 10 ether);
         createOffers(1, 6050 ether, 20 ether);
-        assertEq(gem.balanceOf(this), 100 ether);
-        gem.transfer(proxy, 100 ether);
+        assertEq(gem.balanceOf(this), 0);
         uint startGas = msg.gas;
-        var cup = proxy.marginTrade(100 ether, 2 ether, TubInterface(tub), OtcInterface(otc));
+        var cup = proxy.marginTrade.value(100 ether)(2 ether, TubInterface(tub), OtcInterface(otc));
         uint endGas = msg.gas;
         // log_named_uint('# Orders', i);
         log_named_uint('Gas', startGas - endGas);
@@ -176,7 +187,7 @@ contract OasisDirectProxyTest is SaiTestBase {
     }
 
     function testProxyMarginTradeOffersDifferentPrices10Orders() public {
-        gem.mint(200 ether);
+        gem.mint(100 ether);
         createOffers(1, 1510 ether, 5 ether);
         createOffers(1, 1499 ether, 5 ether);
         createOffers(1, 1250 ether, 4 ether);
@@ -186,10 +197,9 @@ contract OasisDirectProxyTest is SaiTestBase {
         createOffers(1, 9500 ether, 30 ether);
         createOffers(1, 4800 ether, 16 ether);
         createOffers(1, 2150 ether, 7 ether);
-        assertEq(gem.balanceOf(this), 100 ether);
-        gem.transfer(proxy, 100 ether);
+        assertEq(gem.balanceOf(this), 0 ether);
         uint startGas = msg.gas;
-        var cup = proxy.marginTrade(100 ether, 2 ether, TubInterface(tub), OtcInterface(otc));
+        var cup = proxy.marginTrade.value(100 ether)(2 ether, TubInterface(tub), OtcInterface(otc));
         uint endGas = msg.gas;
         // log_named_uint('# Orders', i);
         log_named_uint('Gas', startGas - endGas);
