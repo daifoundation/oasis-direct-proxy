@@ -3,8 +3,8 @@ pragma solidity ^0.4.16;
 import "ds-thing/thing.sol";
 
 contract OtcInterface {
-    function sellAllAmount(address, uint, address) returns (uint);
-    function buyAllAmount(address, uint, address) returns (uint);
+    function sellAllAmount(address, uint, address, uint) returns (uint);
+    function buyAllAmount(address, uint, address, uint) returns (uint);
     function getPayAmount(address, address, uint) returns (uint);
 }
 
@@ -48,39 +48,39 @@ contract OasisDirectProxy is DSThing {
         assert(msg.sender.call.value(wethAmt)());
     }
 
-    function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken) public returns (uint buyAmt) {
+    function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken, uint minBuyAmt) public returns (uint buyAmt) {
         payToken.approve(otc, uint(-1));
-        buyAmt = otc.sellAllAmount(payToken, payAmt, buyToken);
+        buyAmt = otc.sellAllAmount(payToken, payAmt, buyToken, minBuyAmt);
         buyToken.transfer(msg.sender, buyAmt);
     }
 
-    function sellAllAmountPayEth(OtcInterface otc, TokenInterface wethToken, TokenInterface buyToken) public payable returns (uint buyAmt) {
+    function sellAllAmountPayEth(OtcInterface otc, TokenInterface wethToken, TokenInterface buyToken, uint minBuyAmt) public payable returns (uint buyAmt) {
         wethToken.deposit.value(msg.value)();
-        buyAmt = sellAllAmount(otc, wethToken, msg.value, buyToken);
+        buyAmt = sellAllAmount(otc, wethToken, msg.value, buyToken, minBuyAmt);
     }
 
-    function sellAllAmountBuyEth(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface wethToken) public returns (uint wethAmt) {
+    function sellAllAmountBuyEth(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface wethToken, uint minBuyAmt) public returns (uint wethAmt) {
         payToken.approve(otc, uint(-1));
-        wethAmt = otc.sellAllAmount(payToken, payAmt, wethToken);
+        wethAmt = otc.sellAllAmount(payToken, payAmt, wethToken, minBuyAmt);
         withdrawAndSend(wethToken, wethAmt);
     }
 
-    function buyAllAmount(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken) public returns (uint payAmt) {
+    function buyAllAmount(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
         payToken.approve(otc, uint(-1));
-        payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken);
+        payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, maxPayAmt);
         buyToken.transfer(msg.sender, buyAmt);
     }
 
-    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken) public payable returns (uint wethAmt) {
+    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken, uint maxPayAmt) public payable returns (uint wethAmt) {
         // In this case user needs to send more ETH than a estimated value, then contract will send back the rest
         wethToken.deposit.value(msg.value)();
-        wethAmt = buyAllAmount(otc, buyToken, buyAmt, wethToken);
+        wethAmt = buyAllAmount(otc, buyToken, buyAmt, wethToken, maxPayAmt);
         withdrawAndSend(wethToken, sub(msg.value, wethAmt));
     }
 
-    function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken) public returns (uint payAmt) {
+    function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
         payToken.approve(otc, uint(-1));
-        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken);
+        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, maxPayAmt);
         withdrawAndSend(wethToken, wethAmt);
     }
 
@@ -111,7 +111,7 @@ contract OasisDirectProxy is DSThing {
             tub.lock(cup, rmul(tub.per(), amount)); // Lock SKR in the CDP created
             tub.draw(cup, saiToDraw); // Draw SAI
             saiDrawn = add(saiDrawn, saiToDraw); // Add SAI drawn to accumulator
-            amount = otc.sellAllAmount(tub.sai(), sub(tub.sai().balanceOf(this), initialSaiBalance), tub.gem()); // Sell SAI, buy WETH, returns amount of WETH bought
+            amount = otc.sellAllAmount(tub.sai(), sub(tub.sai().balanceOf(this), initialSaiBalance), tub.gem(), 0); // Sell SAI, buy WETH, returns amount of WETH bought
         }
         tub.join(amount); // Convert last WETH to SKR
         tub.lock(cup, rmul(tub.per(), amount)); // Lock last SKR
