@@ -156,6 +156,21 @@ contract OasisDirectProxyTest is SaiTestBase {
         assertEq(this.balance, initialBalance + 15 ether);
     }
 
+    function testProxyMarginNow() public {
+        gem.deposit.value(20 ether)();
+        otc.offer(10 ether, gem, 3200 ether, sai, 0);
+        otc.offer(10 ether, gem, 2800 ether, sai, 0);
+        uint initialBalance = this.balance;
+        var cup = tub.open();
+        tub.give(cup, proxy);
+        uint startGas = msg.gas;
+        var (ethAmount, saiDrawn) = proxy.marginNow.value(10 ether)(TubInterface(tub), OtcInterface(otc), cup, ray(1.7 ether), 99999 ether, 0);
+        uint endGas = msg.gas;
+        log_named_uint('Gas', startGas - endGas);
+        assertEq(saiDrawn, rdiv(rmul(rdiv(ray(10 ether), ray(1.7 ether)), uint(tub.pip().read())), tub.vox().par()));
+        assertEq(this.balance, initialBalance - 10 ether + ethAmount);
+    }
+
     function testProxyMarginTradeOffersSamePrice() public {
         uint dif = 0;
         for (uint i = 1; i <= 30; i++) {
@@ -171,8 +186,9 @@ contract OasisDirectProxyTest is SaiTestBase {
             uint endGas = msg.gas;
             log_named_uint('# Orders', i);
             log_named_uint('Gas', startGas - endGas);
-            var (,ink,) = tub.cups(cup);
+            var (lad, ink, ) = tub.cups(cup);
             assertEq(rdiv(ink, tub.per()), 200 ether);
+            assertEq(lad, this);
         }
     }
 
@@ -188,9 +204,10 @@ contract OasisDirectProxyTest is SaiTestBase {
         uint endGas = msg.gas;
         // log_named_uint('# Orders', i);
         log_named_uint('Gas', startGas - endGas);
-        var (,ink,) = tub.cups(cup);
+        var (lad, ink, ) = tub.cups(cup);
         // log_named_uint('Ink', rdiv(ink, tub.per()));
         assertEq(rdiv(ink, tub.per()), 200 ether);
+        assertEq(lad, this);
     }
 
     function testProxyMarginTradeOffersDifferentPrices10Orders() public {
@@ -210,9 +227,10 @@ contract OasisDirectProxyTest is SaiTestBase {
         uint endGas = msg.gas;
         // log_named_uint('# Orders', i);
         log_named_uint('Gas', startGas - endGas);
-        var (,ink,) = tub.cups(cup);
+        var (lad, ink, ) = tub.cups(cup);
         // log_named_uint('Ink', rdiv(ink, tub.per()));
         assertEq(rdiv(ink, tub.per()), 200 ether);
+        assertEq(lad, this);
     }
 
     // function testGasOrderTake() public {

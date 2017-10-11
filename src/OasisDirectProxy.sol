@@ -22,6 +22,7 @@ contract TubInterface {
     function join(uint);
     function lock(bytes32, uint);
     function draw(bytes32, uint);
+    function give(bytes32, address);
     function gem() returns (TokenInterface);
     function skr() returns (TokenInterface);
     function sai() returns (TokenInterface);
@@ -84,7 +85,7 @@ contract OasisDirectProxy is DSThing {
         withdrawAndSend(wethToken, wethAmt);
     }
 
-    function marginNow(TubInterface tub, OtcInterface otc, bytes32 cup, uint ethAmount, uint mat, uint maxSaiToDraw, uint initialSaiBalance) public returns (uint, uint) {
+    function marginNow(TubInterface tub, OtcInterface otc, bytes32 cup, uint ethAmount, uint mat, uint maxSaiToDraw, uint initialSaiBalance) internal returns (uint, uint) {
         uint saiToDraw = min(
                             rdiv(
                                 rmul(
@@ -100,6 +101,16 @@ contract OasisDirectProxy is DSThing {
         tub.draw(cup, saiToDraw); // Draw SAI
         ethAmount = otc.sellAllAmount(tub.sai(), sub(tub.sai().balanceOf(this), initialSaiBalance), tub.gem(), 0); // Sell SAI, buy WETH, returns ethAmount of WETH bought
         return (ethAmount, saiToDraw);
+    }
+
+    function marginNow(TubInterface tub, OtcInterface otc, bytes32 cup, uint mat, uint maxSaiToDraw, uint initialSaiBalance) public payable returns (uint ethAmount, uint saiDrawn) {
+        tub.gem().deposit.value(msg.value)();
+        tub.gem().approve(tub, uint(-1));
+        tub.skr().approve(tub, uint(-1));
+        tub.sai().approve(otc, uint(-1));
+        (ethAmount, saiDrawn) = marginNow(tub, otc, cup, msg.value, mat, maxSaiToDraw, initialSaiBalance);
+        tub.give(cup, msg.sender);
+        withdrawAndSend(tub.gem(), ethAmount);
     }
 
     function marginTrade(uint leverage, TubInterface tub, OtcInterface otc) public payable returns (bytes32 cup) {
@@ -120,6 +131,7 @@ contract OasisDirectProxy is DSThing {
         }
         tub.join(ethAmount); // Convert last WETH to SKR
         tub.lock(cup, rmul(tub.per(), ethAmount)); // Lock last SKR
+        tub.give(cup, msg.sender); // Assign cup to caller address
     }
 
     function() payable {}
