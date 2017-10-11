@@ -84,37 +84,42 @@ contract OasisDirectProxy is DSThing {
         withdrawAndSend(wethToken, wethAmt);
     }
 
+    function marginNow(TubInterface tub, OtcInterface otc, bytes32 cup, uint ethAmount, uint mat, uint maxSaiToDraw, uint initialSaiBalance) public returns (uint, uint) {
+        uint saiToDraw = min(
+                            rdiv(
+                                rmul(
+                                    rdiv(ethAmount * 10 ** 9, mat),
+                                    uint(tub.pip().read())
+                                    ),
+                                tub.vox().par()
+                            ), // max value of SAI that can be drawn with the locked ethAmount
+                            maxSaiToDraw // value of SAI still needed to be drawn
+                        );
+        tub.join(ethAmount); // Convert WETH to SKR (first time will be the initial ethAmount, next cycles will on the ethAmount bought)
+        tub.lock(cup, rmul(tub.per(), ethAmount)); // Lock SKR in the CDP created
+        tub.draw(cup, saiToDraw); // Draw SAI
+        ethAmount = otc.sellAllAmount(tub.sai(), sub(tub.sai().balanceOf(this), initialSaiBalance), tub.gem(), 0); // Sell SAI, buy WETH, returns ethAmount of WETH bought
+        return (ethAmount, saiToDraw);
+    }
+
     function marginTrade(uint leverage, TubInterface tub, OtcInterface otc) public payable returns (bytes32 cup) {
-        uint amount = msg.value;
-        tub.gem().deposit.value(amount)();
+        uint ethAmount = msg.value;
+        tub.gem().deposit.value(ethAmount)();
         tub.gem().approve(tub, uint(-1));
         tub.skr().approve(tub, uint(-1));
         tub.sai().approve(otc, uint(-1));
 
-        uint totSaiNeeded = otc.getPayAmount(tub.sai(), tub.gem(), wmul(amount, sub(leverage, WAD))); // Check in the actual market how much total SAI is needed to get this desired WETH value
-        uint saiDrawn = 0; // Total SAI already drawn
+        uint totSaiNeeded = otc.getPayAmount(tub.sai(), tub.gem(), wmul(ethAmount, sub(leverage, WAD))); // Check in the actual market how much total SAI is needed to get this desired WETH value
+        uint totSaiDrawn = 0; // Total SAI drawn
+        uint saiDrawn = 0; // Sai drawn in one cycle
         uint initialSaiBalance = tub.sai().balanceOf(this); // Check actual balance of SAI of the proxy
         cup = tub.open(); // Open a new CDP
-
-        while (saiDrawn < totSaiNeeded) { // While there is still SAI pending to be drawn
-            uint saiToDraw = min(
-                            rdiv(
-                                rmul(
-                                    rdiv(amount * 10 ** 9, tub.mat()),
-                                    uint(tub.pip().read())
-                                    ),
-                                tub.vox().par()
-                                ), // max value of SAI that can be drawn with the locked amount
-                            sub(totSaiNeeded, saiDrawn) // value of SAI still needed to be drawn
-                            );
-            tub.join(amount); // Convert WETH to SKR (first time will be the initial amount, next cycles will on the amount bought)
-            tub.lock(cup, rmul(tub.per(), amount)); // Lock SKR in the CDP created
-            tub.draw(cup, saiToDraw); // Draw SAI
-            saiDrawn = add(saiDrawn, saiToDraw); // Add SAI drawn to accumulator
-            amount = otc.sellAllAmount(tub.sai(), sub(tub.sai().balanceOf(this), initialSaiBalance), tub.gem(), 0); // Sell SAI, buy WETH, returns amount of WETH bought
+        while (totSaiDrawn < totSaiNeeded) { // While there is still SAI pending to be drawn
+            (ethAmount, saiDrawn) = marginNow(tub, otc, cup, ethAmount, tub.mat(), sub(totSaiNeeded, totSaiDrawn), initialSaiBalance);
+            totSaiDrawn = add(totSaiDrawn, saiDrawn); // Add SAI drawn to accumulator
         }
-        tub.join(amount); // Convert last WETH to SKR
-        tub.lock(cup, rmul(tub.per(), amount)); // Lock last SKR
+        tub.join(ethAmount); // Convert last WETH to SKR
+        tub.lock(cup, rmul(tub.per(), ethAmount)); // Lock last SKR
     }
 
     function() payable {}
