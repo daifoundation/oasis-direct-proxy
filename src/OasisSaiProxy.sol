@@ -40,13 +40,13 @@ contract PipInterface {
     function read() returns (bytes32);
 }
 
-contract OasisDirectProxy is DSThing {
+contract OasisSaiProxy is DSThing {
     address eth;
     address sai;
 
     function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
         wethToken.withdraw(wethAmt);
-        assert(msg.sender.call.value(wethAmt)());
+        require(msg.sender.call.value(wethAmt)());
     }
 
     function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken, uint minBuyAmt) public returns (uint buyAmt) {

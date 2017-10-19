@@ -3,7 +3,7 @@ pragma solidity ^0.4.16;
 import "ds-test/test.sol";
 import "sai/sai.t.sol";
 import "maker-otc/matching_market.sol";
-import "./OasisDirectProxy.sol";
+import "./OasisSaiProxy.sol";
 
 contract WETH is DSToken {
     function WETH() DSToken("WETH") {}
@@ -16,12 +16,12 @@ contract WETH is DSToken {
     function withdraw(uint amount) public {
         _balances[msg.sender] = sub(_balances[msg.sender], amount);
         _supply = sub(_supply, amount);
-        assert(msg.sender.call.value(amount)());
+        require(msg.sender.call.value(amount)());
     }
 }
 
-contract OasisDirectProxyTest is SaiTestBase {
-    OasisDirectProxy proxy;
+contract OasisSaiProxyTest is SaiTestBase {
+    OasisSaiProxy proxy;
     MatchingMarket otc;
     WETH gem;
 
@@ -45,7 +45,7 @@ contract OasisDirectProxyTest is SaiTestBase {
         sai.trust(tap, true);
         skr.trust(tap, true);
         
-        proxy = new OasisDirectProxy();
+        proxy = new OasisSaiProxy();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(gem, sai);
         gem.trust(otc, true);
