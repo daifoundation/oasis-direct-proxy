@@ -1,6 +1,6 @@
 pragma solidity ^0.4.16;
 
-import "ds-thing/thing.sol";
+import "ds-math/math.sol";
 
 contract OtcInterface {
     function sellAllAmount(address, uint, address, uint) returns (uint);
@@ -40,7 +40,7 @@ contract PipInterface {
     function read() returns (bytes32);
 }
 
-contract OasisSaiProxy is DSThing {
+contract OasisSaiProxy is DSMath {
     address eth;
     address sai;
 

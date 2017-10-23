@@ -7,6 +7,6 @@
 [submodule "lib/sai"]
 	path = lib/sai
 	url = git@github.com:makerdao/sai.git
-[submodule "lib/ds-thing"]
-	path = lib/ds-thing
-	url = git@github.com:dapphub/ds-thing.git
+[submodule "lib/ds-math"]
+	path = lib/ds-math
+	url = https://github.com/dapphub/ds-math

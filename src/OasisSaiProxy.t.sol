@@ -30,11 +30,14 @@ contract OasisSaiProxyTest is SaiTestBase {
         sai = new DSToken("SAI");
         sin = new DSToken("SIN");
         skr = new DSToken("SKR");
+        gov = new DSToken("GOV");
         tag = new DSValue();
-        vox = new SaiVox();
+        pep = new DSValue();
+        vox = new DevVox();
+        pit = address(0x123);
         tap = new SaiTap();
-        tub = new SaiTub(sai, sin, skr, gem, tag, vox, tap);
-        top = new SaiTop(tub, tap);
+        tub = new DevTub(sai, sin, skr, gem, gov, tag, pep, vox, tap, pit);
+        top = new DevTop(tub, tap);
         tap.turn(tub);
         dad = new DSGuard();
         mom = new SaiMom(tub, tap, vox);
@@ -42,9 +45,10 @@ contract OasisSaiProxyTest is SaiTestBase {
         sai.trust(tub, true);
         skr.trust(tub, true);
         gem.trust(tub, true);
+        gov.trust(tub, true);
         sai.trust(tap, true);
         skr.trust(tap, true);
-        
+
         proxy = new OasisSaiProxy();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(gem, sai);
