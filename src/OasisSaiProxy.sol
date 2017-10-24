@@ -76,6 +76,7 @@ contract OasisSaiProxy is DSMath {
         payToken.approve(otc, maxPayAmt);
         payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, maxPayAmt);
         buyToken.transfer(msg.sender, buyAmt);
+        payToken.transfer(msg.sender, sub(maxPayAmt, payAmt));
     }
 
     function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken) public payable returns (uint wethAmt) {
@@ -91,6 +92,7 @@ contract OasisSaiProxy is DSMath {
         payToken.approve(otc, uint(-1));
         payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, maxPayAmt);
         withdrawAndSend(wethToken, wethAmt);
+        payToken.transfer(msg.sender, sub(maxPayAmt, payAmt));
     }
 
     function marginNow(TubInterface tub, OtcInterface otc, bytes32 cup, uint ethAmount, uint mat, uint maxSaiToDraw, uint initialSaiBalance) internal returns (uint, uint) {
