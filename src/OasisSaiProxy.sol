@@ -13,6 +13,7 @@ contract TokenInterface {
     function trust(address, bool);
     function approve(address, uint);
     function transfer(address,uint);
+    function transferFrom(address, address, uint);
     function deposit() payable;
     function withdraw(uint);
 }
@@ -50,36 +51,43 @@ contract OasisSaiProxy is DSMath {
     }
 
     function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken, uint minBuyAmt) public returns (uint buyAmt) {
-        payToken.approve(otc, uint(-1));
+        payToken.transferFrom(msg.sender, this, payAmt);
+        payToken.approve(otc, payAmt);
         buyAmt = otc.sellAllAmount(payToken, payAmt, buyToken, minBuyAmt);
         buyToken.transfer(msg.sender, buyAmt);
     }
 
     function sellAllAmountPayEth(OtcInterface otc, TokenInterface wethToken, TokenInterface buyToken, uint minBuyAmt) public payable returns (uint buyAmt) {
         wethToken.deposit.value(msg.value)();
-        buyAmt = sellAllAmount(otc, wethToken, msg.value, buyToken, minBuyAmt);
+        wethToken.approve(otc, msg.value);
+        buyAmt = otc.sellAllAmount(wethToken, msg.value, buyToken, minBuyAmt);
+        buyToken.transfer(msg.sender, buyAmt);
     }
 
     function sellAllAmountBuyEth(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface wethToken, uint minBuyAmt) public returns (uint wethAmt) {
-        payToken.approve(otc, uint(-1));
+        payToken.transferFrom(msg.sender, this, payAmt);
+        payToken.approve(otc, payAmt);
         wethAmt = otc.sellAllAmount(payToken, payAmt, wethToken, minBuyAmt);
         withdrawAndSend(wethToken, wethAmt);
     }
 
     function buyAllAmount(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
-        payToken.approve(otc, uint(-1));
+        payToken.transferFrom(msg.sender, this, maxPayAmt);
+        payToken.approve(otc, maxPayAmt);
         payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, maxPayAmt);
         buyToken.transfer(msg.sender, buyAmt);
     }
 
-    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken, uint maxPayAmt) public payable returns (uint wethAmt) {
+    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken) public payable returns (uint wethAmt) {
         // In this case user needs to send more ETH than a estimated value, then contract will send back the rest
         wethToken.deposit.value(msg.value)();
-        wethAmt = buyAllAmount(otc, buyToken, buyAmt, wethToken, maxPayAmt);
+        wethToken.approve(otc, msg.value);
+        wethAmt = otc.buyAllAmount(buyToken, buyAmt, wethToken, msg.value);
         withdrawAndSend(wethToken, sub(msg.value, wethAmt));
     }
 
     function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
+        payToken.transferFrom(msg.sender, this, maxPayAmt);
         payToken.approve(otc, uint(-1));
         payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, maxPayAmt);
         withdrawAndSend(wethToken, wethAmt);

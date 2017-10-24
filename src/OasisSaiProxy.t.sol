@@ -70,7 +70,7 @@ contract OasisSaiProxyTest is SaiTestBase {
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         sai.mint(4000 ether);
-        sai.transfer(proxy, 4000 ether);
+        sai.approve(proxy, 4000 ether);
         assertEq(gem.balanceOf(this), 0);
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = msg.gas;
@@ -103,7 +103,7 @@ contract OasisSaiProxyTest is SaiTestBase {
         otc.offer(10 ether, gem, 2800 ether, sai, 0);
         uint initialBalance = this.balance;
         sai.mint(4000 ether);
-        sai.transfer(proxy, 4000 ether);
+        sai.approve(proxy, 4000 ether);
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = msg.gas;
         uint buyAmt = proxy.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(sai), 4000 ether, TokenInterface(gem), expectedResult);
@@ -118,7 +118,7 @@ contract OasisSaiProxyTest is SaiTestBase {
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         sai.mint(4400 ether);
-        sai.transfer(proxy, 4400 ether);
+        sai.approve(proxy, 4400 ether);
         assertEq(gem.balanceOf(this), 0);
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = msg.gas;
@@ -137,7 +137,7 @@ contract OasisSaiProxyTest is SaiTestBase {
         assertEq(sai.balanceOf(this), 0);
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
         uint startGas = msg.gas;
-        uint payAmt = proxy.buyAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(sai), 4600 ether, TokenInterface(gem), expectedResult);
+        uint payAmt = proxy.buyAllAmountPayEth.value(expectedResult)(OtcInterface(otc), TokenInterface(sai), 4600 ether, TokenInterface(gem));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
@@ -150,7 +150,7 @@ contract OasisSaiProxyTest is SaiTestBase {
         otc.offer(10 ether, gem, 2800 ether, sai, 0);
         uint initialBalance = this.balance;
         sai.mint(4400 ether);
-        sai.transfer(proxy, 4400 ether);
+        sai.approve(proxy, 4400 ether);
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = msg.gas;
         uint sellAmt = proxy.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(gem), 15 ether, TokenInterface(sai), expectedResult);
