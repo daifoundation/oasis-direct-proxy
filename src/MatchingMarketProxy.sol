@@ -5,12 +5,9 @@ import "ds-math/math.sol";
 contract OtcInterface {
     function sellAllAmount(address, uint, address, uint) returns (uint);
     function buyAllAmount(address, uint, address, uint) returns (uint);
-    function getPayAmount(address, address, uint) returns (uint);
 }
 
 contract TokenInterface {
-    function balanceOf(address) returns (uint);
-    function trust(address, bool);
     function approve(address, uint);
     function transfer(address,uint);
     function transferFrom(address, address, uint);
@@ -63,7 +60,7 @@ contract MatchingMarketProxy is DSMath {
 
     function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
         payToken.transferFrom(msg.sender, this, maxPayAmt);
-        payToken.approve(otc, uint(-1));
+        payToken.approve(otc, maxPayAmt);
         payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, maxPayAmt);
         withdrawAndSend(wethToken, wethAmt);
         payToken.transfer(msg.sender, sub(maxPayAmt, payAmt));
