@@ -19,9 +19,6 @@ contract TokenInterface {
 }
 
 contract MatchingMarketProxy is DSMath {
-    address eth;
-    address sai;
-
     function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
         wethToken.withdraw(wethAmt);
         require(msg.sender.call.value(wethAmt)());
