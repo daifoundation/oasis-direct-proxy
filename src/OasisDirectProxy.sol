@@ -15,7 +15,7 @@ contract TokenInterface {
     function withdraw(uint);
 }
 
-contract MatchingMarketProxy is DSMath {
+contract OasisDirectProxy is DSMath {
     function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
         wethToken.withdraw(wethAmt);
         require(msg.sender.call.value(wethAmt)());

@@ -3,7 +3,7 @@ pragma solidity ^0.4.16;
 import "ds-test/test.sol";
 import "ds-token/token.sol";
 import "maker-otc/matching_market.sol";
-import "./MatchingMarketProxy.sol";
+import "./OasisDirectProxy.sol";
 
 contract WETH is DSToken {
     function WETH() DSToken("WETH") {}
@@ -20,8 +20,8 @@ contract WETH is DSToken {
     }
 }
 
-contract MatchingMarketProxyTest is DSTest {
-    MatchingMarketProxy proxy;
+contract OasisDirectProxyTest is DSTest {
+    OasisDirectProxy proxy;
     MatchingMarket otc;
     WETH weth;
     DSToken mkr;
@@ -30,7 +30,7 @@ contract MatchingMarketProxyTest is DSTest {
         weth = new WETH();
         mkr = new DSToken("MKR");
 
-        proxy = new MatchingMarketProxy();
+        proxy = new OasisDirectProxy();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(weth, mkr);
         weth.approve(otc);
