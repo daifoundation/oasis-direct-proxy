@@ -3,16 +3,16 @@ pragma solidity ^0.4.16;
 import "ds-math/math.sol";
 
 contract OtcInterface {
-    function sellAllAmount(address, uint, address, uint) returns (uint);
-    function buyAllAmount(address, uint, address, uint) returns (uint);
+    function sellAllAmount(address, uint, address, uint) public returns (uint);
+    function buyAllAmount(address, uint, address, uint) public returns (uint);
 }
 
 contract TokenInterface {
-    function approve(address, uint);
-    function transfer(address,uint) returns (bool);
-    function transferFrom(address, address, uint) returns (bool);
-    function deposit() payable;
-    function withdraw(uint);
+    function approve(address, uint) public;
+    function transfer(address,uint) public returns (bool);
+    function transferFrom(address, address, uint) public returns (bool);
+    function deposit() public payable;
+    function withdraw(uint) public;
 }
 
 contract OasisDirectProxy is DSMath {
@@ -66,5 +66,5 @@ contract OasisDirectProxy is DSMath {
         require(payToken.transfer(msg.sender, sub(maxPayAmt, payAmt)));
     }
 
-    function() payable {}
+    function() public payable {}
 }

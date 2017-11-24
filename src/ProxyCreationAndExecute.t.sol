@@ -1,27 +1,11 @@
 pragma solidity ^0.4.16;
 
-import "ds-test/test.sol";
-import "ds-token/token.sol";
-import "maker-otc/matching_market.sol";
-import "./OasisDirectProxy.sol";
+import "./OasisDirectProxy.t.sol";
+import "./ProxyCreationAndExecute.sol";
 
-contract WETH is DSToken {
-    function WETH() DSToken("WETH") public {}
-
-    function deposit() public payable {
-        _balances[msg.sender] = add(_balances[msg.sender], msg.value);
-        _supply = add(_supply, msg.value);
-    }
-
-    function withdraw(uint amount) public {
-        _balances[msg.sender] = sub(_balances[msg.sender], amount);
-        _supply = sub(_supply, amount);
-        require(msg.sender.call.value(amount)());
-    }
-}
-
-contract OasisDirectProxyTest is DSTest {
-    OasisDirectProxy proxy;
+contract ProxyCreationAndExecuteTest is DSTest {
+    ProxyCreationAndExecute creator;
+    DSProxyFactory factory;
     MatchingMarket otc;
     WETH weth;
     DSToken mkr;
@@ -30,7 +14,8 @@ contract OasisDirectProxyTest is DSTest {
         weth = new WETH();
         mkr = new DSToken("MKR");
 
-        proxy = new OasisDirectProxy();
+        creator = new ProxyCreationAndExecute();
+        factory = new DSProxyFactory();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(weth, mkr);
         weth.approve(otc);
@@ -48,15 +33,16 @@ contract OasisDirectProxyTest is DSTest {
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4000 ether);
-        mkr.approve(proxy, 4000 ether);
+        mkr.approve(creator, 4000 ether);
         assertEq(weth.balanceOf(this), 0);
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = msg.gas;
-        uint buyAmt = proxy.sellAllAmount(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
+        var (proxy, buyAmt) = creator.createAndSellAllAmount(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(weth.balanceOf(this), buyAmt);
+        assertEq(proxy.owner(), this);
     }
 
     function testProxySellAllPayEth() public {
@@ -67,12 +53,13 @@ contract OasisDirectProxyTest is DSTest {
         assertEq(mkr.balanceOf(this), 0);
         uint expectedResult = 3200 ether * 10 / 10 + 2800 ether * 5 / 10;
         uint startGas = msg.gas;
-        uint buyAmt = proxy.sellAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(weth), TokenInterface(mkr), expectedResult);
+        var (proxy, buyAmt) = creator.createAndSellAllAmountPayEth.value(15 ether)(factory, OtcInterface(otc), TokenInterface(weth), TokenInterface(mkr), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(mkr.balanceOf(this), buyAmt);
         assertEq(this.balance, initialBalance - 15 ether);
+        assertEq(proxy.owner(), this);
     }
 
     function testProxySellAllBuyEth() public {
@@ -81,14 +68,15 @@ contract OasisDirectProxyTest is DSTest {
         otc.offer(10 ether, weth, 2800 ether, mkr, 0);
         uint initialBalance = this.balance;
         mkr.mint(4000 ether);
-        mkr.approve(proxy, 4000 ether);
+        mkr.approve(creator, 4000 ether);
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = msg.gas;
-        uint buyAmt = proxy.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
+        var (proxy, buyAmt) = creator.createAndSellAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(this.balance, initialBalance + expectedResult);
+        assertEq(proxy.owner(), this);
     }
 
     function testProxyBuyAll() public {
@@ -96,15 +84,16 @@ contract OasisDirectProxyTest is DSTest {
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4400 ether);
-        mkr.approve(proxy, 4400 ether);
+        mkr.approve(creator, 4400 ether);
         assertEq(weth.balanceOf(this), 0);
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = msg.gas;
-        uint payAmt = proxy.buyAllAmount(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
+        var (proxy, payAmt) = creator.createAndBuyAllAmount(factory, OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(weth.balanceOf(this), 15 ether);
+        assertEq(proxy.owner(), this);
     }
 
     function testProxyBuyAllPayEth() public {
@@ -115,11 +104,12 @@ contract OasisDirectProxyTest is DSTest {
         assertEq(mkr.balanceOf(this), 0);
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
         uint startGas = msg.gas;
-        uint payAmt = proxy.buyAllAmountPayEth.value(expectedResult)(OtcInterface(otc), TokenInterface(mkr), 4600 ether, TokenInterface(weth));
+        var (proxy, payAmt) = creator.createAndBuyAllAmountPayEth.value(expectedResult)(factory, OtcInterface(otc), TokenInterface(mkr), 4600 ether, TokenInterface(weth));
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(this.balance, initialBalance - payAmt);
+        assertEq(proxy.owner(), this);
     }
 
     function testProxyBuyAllBuyEth() public {
@@ -128,14 +118,15 @@ contract OasisDirectProxyTest is DSTest {
         otc.offer(10 ether, weth, 2800 ether, mkr, 0);
         uint initialBalance = this.balance;
         mkr.mint(4400 ether);
-        mkr.approve(proxy, 4400 ether);
+        mkr.approve(creator, 4400 ether);
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = msg.gas;
-        uint payAmt = proxy.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
+        var (proxy, payAmt) = creator.createAndBuyAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(this.balance, initialBalance + 15 ether);
+        assertEq(proxy.owner(), this);
     }
 
     function() public payable {}
