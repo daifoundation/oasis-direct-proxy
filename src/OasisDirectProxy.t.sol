@@ -120,6 +120,7 @@ contract OasisDirectProxyTest is DSTest {
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(this.balance, initialBalance - payAmt);
+        assertEq(mkr.balanceOf(this), 4600 ether);
     }
 
     function testProxyBuyAllBuyEth() public {

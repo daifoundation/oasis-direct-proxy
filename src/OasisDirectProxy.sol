@@ -8,6 +8,7 @@ contract OtcInterface {
 }
 
 contract TokenInterface {
+    function balanceOf(address) public returns (uint);
     function approve(address, uint) public;
     function transfer(address,uint) public returns (bool);
     function transferFrom(address, address, uint) public returns (bool);
@@ -46,7 +47,7 @@ contract OasisDirectProxy is DSMath {
         require(payToken.transferFrom(msg.sender, this, maxPayAmt));
         payToken.approve(otc, maxPayAmt);
         payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, maxPayAmt);
-        require(buyToken.transfer(msg.sender, buyAmt));
+        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(this)))); // To avoid rounding issues we check the minimum value
         require(payToken.transfer(msg.sender, sub(maxPayAmt, payAmt)));
     }
 
@@ -55,6 +56,7 @@ contract OasisDirectProxy is DSMath {
         wethToken.deposit.value(msg.value)();
         wethToken.approve(otc, msg.value);
         wethAmt = otc.buyAllAmount(buyToken, buyAmt, wethToken, msg.value);
+        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(this)))); // To avoid rounding issues we check the minimum value
         withdrawAndSend(wethToken, sub(msg.value, wethAmt));
     }
 
