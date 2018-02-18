@@ -58,7 +58,7 @@ contract OasisDirectProxy is DSMath {
         if (payToken.allowance(this, otc) < payAmtNow) {
             payToken.approve(otc, uint(-1));
         }
-        payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, maxPayAmt);
+        payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, payAmtNow);
         require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(this)))); // To avoid rounding issues we check the minimum value
     }
 
@@ -80,7 +80,7 @@ contract OasisDirectProxy is DSMath {
         if (payToken.allowance(this, otc) < payAmtNow) {
             payToken.approve(otc, uint(-1));
         }
-        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, maxPayAmt);
+        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, payAmtNow);
         withdrawAndSend(wethToken, wethAmt);
     }
 
