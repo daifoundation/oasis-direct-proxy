@@ -15,7 +15,7 @@ contract ProxyCreationAndExecuteTest is DSTest {
         weth = new WETH();
         mkr = new DSToken("MKR");
 
-        creator = new ProxyCreationAndExecute();
+        creator = new ProxyCreationAndExecute(weth);
         factory = new DSProxyFactory();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(weth, mkr);
@@ -53,21 +53,21 @@ contract ProxyCreationAndExecuteTest is DSTest {
     }
 
     function testProxySellAllPayEth() public {
-        uint initialBalance = this.balance;
+        uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
         mkr.transfer(user, 6000 ether);
         user.doOffer(3200 ether, mkr, 10 ether, weth);
         user.doOffer(2800 ether, mkr, 10 ether, weth);
         assertEq(mkr.balanceOf(this), 0); // Balance token to buy
-        assertEq(this.balance, initialBalance); // Balance ETH
+        assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 3200 ether * 10 / 10 + 2800 ether * 5 / 10;
         uint startGas = msg.gas;
-        var (proxy, buyAmt) = creator.createAndSellAllAmountPayEth.value(15 ether)(factory, OtcInterface(otc), TokenInterface(weth), TokenInterface(mkr), expectedResult);
+        var (proxy, buyAmt) = creator.createAndSellAllAmountPayEth.value(15 ether)(factory, OtcInterface(otc), TokenInterface(mkr), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(mkr.balanceOf(this), buyAmt); // Balance token bought
-        assertEq(this.balance, initialBalance - 15 ether); // Balance ETH
+        assertEq(address(this).balance, initialBalance - 15 ether); // Balance ETH
         assertEq(proxy.owner(), this);
     }
 
@@ -75,18 +75,18 @@ contract ProxyCreationAndExecuteTest is DSTest {
         user.doDeposit.value(20 ether)(weth);
         user.doOffer(10 ether, weth, 3200 ether, mkr);
         user.doOffer(10 ether, weth, 2800 ether, mkr);
-        uint initialBalance = this.balance;
+        uint initialBalance = address(this).balance;
         mkr.mint(4000 ether);
         mkr.approve(creator, 4000 ether);
-        assertEq(this.balance, initialBalance); // Balance ETH
+        assertEq(address(this).balance, initialBalance); // Balance ETH
         assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = msg.gas;
-        var (proxy, buyAmt) = creator.createAndSellAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
+        var (proxy, buyAmt) = creator.createAndSellAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
-        assertEq(this.balance, initialBalance + expectedResult); // Balance ETH
+        assertEq(address(this).balance, initialBalance + expectedResult); // Balance ETH
         assertEq(mkr.balanceOf(this), 0); // Balance token sold
         assertEq(proxy.owner(), this);
     }
@@ -112,21 +112,21 @@ contract ProxyCreationAndExecuteTest is DSTest {
     }
 
     function testProxyBuyAllPayEth() public {
-        uint initialBalance = this.balance;
+        uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
         mkr.transfer(user, 6000 ether);
         user.doOffer(3200 ether, mkr, 10 ether, weth);
         user.doOffer(2800 ether, mkr, 10 ether, weth);
         assertEq(mkr.balanceOf(this), 0); // Balance token to buy
-        assertEq(this.balance, initialBalance); // Balance ETH
+        assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
         uint startGas = msg.gas;
-        var (proxy, payAmt) = creator.createAndBuyAllAmountPayEth.value(expectedResult)(factory, OtcInterface(otc), TokenInterface(mkr), 4600 ether, TokenInterface(weth));
+        var (proxy, payAmt) = creator.createAndBuyAllAmountPayEth.value(expectedResult)(factory, OtcInterface(otc), TokenInterface(mkr), 4600 ether);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(mkr.balanceOf(this), 4600 ether); // Balance token bought
-        assertEq(this.balance, initialBalance - payAmt); // Balance ETH
+        assertEq(address(this).balance, initialBalance - payAmt); // Balance ETH
         assertEq(proxy.owner(), this);
     }
 
@@ -134,20 +134,24 @@ contract ProxyCreationAndExecuteTest is DSTest {
         user.doDeposit.value(20 ether)(weth);
         user.doOffer(10 ether, weth, 3200 ether, mkr);
         user.doOffer(10 ether, weth, 2800 ether, mkr);
-        uint initialBalance = this.balance;
+        uint initialBalance = address(this).balance;
         mkr.mint(4400 ether);
         mkr.approve(creator, 4400 ether);
-        assertEq(this.balance, initialBalance); // Balance ETH
+        assertEq(address(this).balance, initialBalance); // Balance ETH
         assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = msg.gas;
-        var (proxy, payAmt) = creator.createAndBuyAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
+        var (proxy, payAmt) = creator.createAndBuyAllAmountBuyEth(factory, OtcInterface(otc), 15 ether, TokenInterface(mkr), expectedResult);
         uint endGas = msg.gas;
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
-        assertEq(this.balance, initialBalance + 15 ether); // Balance ETH
+        assertEq(address(this).balance, initialBalance + 15 ether); // Balance ETH
         assertEq(mkr.balanceOf(this), 4400 ether - payAmt); // Balance token sold
         assertEq(proxy.owner(), this);
+    }
+
+    function testFailSendFunds() public {
+        assert(address(creator).call.value(1 ether)());
     }
 
     function() public payable {}
