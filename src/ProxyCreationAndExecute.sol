@@ -41,8 +41,6 @@ contract ProxyCreationAndExecute is OasisDirectProxy {
     }
 
     function() public payable {
-        if (msg.sender != address(wethToken)) {
-            revert();
-        }
+        require(msg.sender == address(wethToken));
     }
 }
