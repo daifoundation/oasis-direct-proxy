@@ -13,3 +13,6 @@
 [submodule "lib/ds-proxy"]
 	path = lib/ds-proxy
 	url = https://github.com/dapphub/ds-proxy.git
+[submodule "lib/sai"]
+	path = lib/sai
+	url = https://github.com/makerdao/sai
