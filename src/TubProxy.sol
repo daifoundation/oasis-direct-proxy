@@ -15,10 +15,6 @@ contract TokenInterface {
 }
 
 contract TubProxy is DSMath {
-  // function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
-  // wethToken.withdraw(wethAmt);
-  // require(msg.sender.call.value(wethAmt)());
-  // }
 
   function joinOpenAndDraw(SaiTub tub, TokenInterface wethToken, uint withdrawAmount) public payable returns (bytes32 cup) {
     // convert eth -> weth
@@ -38,23 +34,27 @@ contract TubProxy is DSMath {
       tub.sai().approve(tub, uint(-1));
     }
 
-     uint intValue = uint(msg.value);
+    // // join tub and convert to peth
+    // // since proxy has weth, need to convert to peth with join
+    // // proxy now has SKR
+    // transfering fails when tranfer from proxy to tub
+    // allowance?
 
-    // join tub and convert to peth
-    // since proxy has weth, need to convert to peth with join
-    // proxy now has SKR
-    tub.join(intValue);
+    uint skRate = tub.ask(WAD);
+    uint valueSkr = wdiv(msg.value, skRate);
+    tub.join(valueSkr);
 
     // open CDP
-    // returns cup but delegatecall can't return values
     cup = tub.open();
 
     // lock collateral
-    tub.lock(cup, intValue);
+    tub.lock(cup, min(valueSkr, tub.skr().balanceOf(this)));
 
     // withdraw dai
     // require(withdraw amount is above liquidation threshold)
     tub.draw(cup, withdrawAmount);
+
+    tub.give(cup, msg.sender);
   }
 
   function() public payable {}

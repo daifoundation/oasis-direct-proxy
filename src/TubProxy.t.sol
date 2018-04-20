@@ -75,7 +75,7 @@ contract OasisDirectProxyTest is DSTest {
 
     // Execute
     uint startGas = gasleft();
-    bytes32 cup = proxy.joinOpenAndDraw.value(10 ether)(SaiTub(tub), TokenInterface(weth), 1 ether);
+    proxy.joinOpenAndDraw.value(10 ether)(SaiTub(tub), TokenInterface(weth), 1 ether);
     uint endGas = gasleft();
     log_named_uint('Gas', startGas - endGas);
 
