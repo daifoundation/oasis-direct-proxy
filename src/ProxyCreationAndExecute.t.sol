@@ -42,9 +42,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(weth.balanceOf(this), 0); // Balance token to buy
         assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, buyAmt) = creator.createAndSellAllAmount(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(weth.balanceOf(this), buyAmt); // Balance token bought
@@ -61,9 +61,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(mkr.balanceOf(this), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 3200 ether * 10 / 10 + 2800 ether * 5 / 10;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, buyAmt) = creator.createAndSellAllAmountPayEth.value(15 ether)(factory, OtcInterface(otc), TokenInterface(mkr), expectedResult);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(mkr.balanceOf(this), buyAmt); // Balance token bought
@@ -81,9 +81,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(address(this).balance, initialBalance); // Balance ETH
         assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, buyAmt) = creator.createAndSellAllAmountBuyEth(factory, OtcInterface(otc), TokenInterface(mkr), 4000 ether, expectedResult);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + expectedResult); // Balance ETH
@@ -101,9 +101,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(weth.balanceOf(this), 0); // Balance token to buy
         assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, payAmt) = creator.createAndBuyAllAmount(factory, OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(weth.balanceOf(this), 15 ether); // Balance token bought
@@ -120,9 +120,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(mkr.balanceOf(this), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, payAmt) = creator.createAndBuyAllAmountPayEth.value(expectedResult)(factory, OtcInterface(otc), TokenInterface(mkr), 4600 ether);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(mkr.balanceOf(this), 4600 ether); // Balance token bought
@@ -140,9 +140,9 @@ contract ProxyCreationAndExecuteTest is DSTest {
         assertEq(address(this).balance, initialBalance); // Balance ETH
         assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
-        uint startGas = msg.gas;
+        uint startGas = gasleft();
         var (proxy, payAmt) = creator.createAndBuyAllAmountBuyEth(factory, OtcInterface(otc), 15 ether, TokenInterface(mkr), expectedResult);
-        uint endGas = msg.gas;
+        uint endGas = gasleft();
         log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + 15 ether); // Balance ETH
