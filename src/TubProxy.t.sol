@@ -75,15 +75,16 @@ contract OasisDirectProxyTest is DSTest {
 
     // Execute
     uint startGas = gasleft();
-    proxy.joinOpenAndDraw.value(10 ether)(SaiTub(tub), TokenInterface(weth), 1 ether);
+    bytes32 resultCup = proxy.joinOpenAndDraw.value(10 ether)(TubInterface(tub), 1 ether);
     uint endGas = gasleft();
     log_named_uint('Gas', startGas - endGas);
 
     // Assertions
     assertEq(address(this).balance, initialBalance - 10 ether);
     var (lad,) = tub.cups(bytes32(tub.cupi()));
-    assertEq(lad, address(proxy));
-    assertEq(sai.balanceOf(proxy), 1 ether);
+    assertEq(bytes32(resultCup), bytes32(tub.cupi()));
+    assertEq(lad, address(this));
+    assertEq(sai.balanceOf(this), 1 ether);
   }
 
   function() public payable {}

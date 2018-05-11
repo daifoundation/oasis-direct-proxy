@@ -1,22 +1,21 @@
-pragma solidity ^0.4.16;
+pragma solidity ^0.4.18;
 
 import "./TubProxy.sol";
 import "ds-proxy/proxy.sol";
-import "sai/tub.sol";
 
 contract ProxyCreationAndExecute is TubProxy {
-  TokenInterface wethToken;
+  TubInterface tub;
 
-  function ProxyCreationAndExecute(address wethToken_) {
-    wethToken = TokenInterface(wethToken_);
+  function ProxyCreationAndExecute(address _tub) {
+    tub = TubInterface(_tub);
   }
 
-  function createAndJoinOpenDraw(DSProxyFactory factory, SaiTub tub, uint withdrawAmount) public payable returns (DSProxy proxy, bytes32 cup) {
+  function createAndJoinOpenDraw(DSProxyFactory factory, uint withdrawAmount) public payable returns (DSProxy proxy, bytes32 cup) {
     proxy = factory.build(msg.sender);
-    cup = joinOpenAndDraw(tub, wethToken, withdrawAmount);
+    cup = joinOpenAndDraw(tub, withdrawAmount);
   }
 
   function() public payable {
-    require(msg.sender == address(wethToken));
+    require(msg.sender == address(tub.gem()));
   }
 }

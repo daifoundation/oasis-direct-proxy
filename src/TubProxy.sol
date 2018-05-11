@@ -1,8 +1,6 @@
-pragma solidity ^0.4.16;
+pragma solidity ^0.4.18;
 
 import "ds-math/math.sol";
-import "ds-token/token.sol";
-import "sai/tub.sol";
 
 contract TokenInterface {
   function balanceOf(address) public returns (uint);
@@ -14,47 +12,45 @@ contract TokenInterface {
   function withdraw(uint) public;
 }
 
-contract TubProxy is DSMath {
+contract TubInterface {
+  function gem() public returns (address);
+  function skr() public returns (address);
+  function sai() public returns (address);
+  function ask(uint) public returns (uint);
+  function join(uint) public;
+  function open() public returns (bytes32);
+  function lock(bytes32, uint) public;
+  function draw(bytes32, uint) public;
+  function give(bytes32, address) public;
+}
 
-  function joinOpenAndDraw(SaiTub tub, TokenInterface wethToken, uint withdrawAmount) public payable returns (bytes32 cup) {
-    // convert eth -> weth
-    // TubProxy has msg.value
-    // TubProxy gives allownce to Tub to manage its Weth balance
-    // proxy deposits msg.value on behalf of user
-    wethToken.deposit.value(msg.value)();
+contract TubProxyEvents {
+  event LogNewCup(address indexed lad, bytes32 cup);
+}
 
-    // approvals
-    if (wethToken.allowance(this, tub) < msg.value) {
+contract TubProxy is DSMath, TubProxyEvents {
+  function joinOpenAndDraw(TubInterface tub, uint withdrawAmount) public payable returns (bytes32 cup) {
+    TokenInterface wethToken = TokenInterface(tub.gem());
+    TokenInterface skr       = TokenInterface(tub.skr());
+    TokenInterface sai       = TokenInterface(tub.sai());
+    if (skr.allowance(address(this), tub) < msg.value) {
+      skr.approve(tub, uint(-1));
+    }
+    if (sai.allowance(address(this), tub) < msg.value) {
+      sai.approve(tub, uint(-1));
+    }
+    if (wethToken.allowance(address(this), tub) < msg.value) {
       wethToken.approve(tub, uint(-1));
     }
-    if (tub.skr().allowance(this, tub) < msg.value) {
-      tub.skr().approve(tub, uint(-1));
-    }
-    if (tub.sai().allowance(this, tub) < msg.value) {
-      tub.sai().approve(tub, uint(-1));
-    }
-
-    // // join tub and convert to peth
-    // // since proxy has weth, need to convert to peth with join
-    // // proxy now has SKR
-    // transfering fails when tranfer from proxy to tub
-    // allowance?
-
-    uint skRate = tub.ask(WAD);
-    uint valueSkr = wdiv(msg.value, skRate);
+    wethToken.deposit.value(msg.value)();
+    uint valueSkr = wdiv(msg.value, tub.ask(WAD));
     tub.join(valueSkr);
-
-    // open CDP
     cup = tub.open();
-
-    // lock collateral
-    tub.lock(cup, min(valueSkr, tub.skr().balanceOf(this)));
-
-    // withdraw dai
-    // require(withdraw amount is above liquidation threshold)
-    tub.draw(cup, withdrawAmount);
-
+    tub.lock(cup, valueSkr);
+    tub.draw(bytes32(cup), withdrawAmount);
     tub.give(cup, msg.sender);
+    sai.transfer(msg.sender, withdrawAmount);
+    LogNewCup(msg.sender, cup);
   }
 
   function() public payable {}
