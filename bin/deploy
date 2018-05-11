@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -ex
+
+export SOLC_FLAGS=${SOLC_FLAGS:-"--optimize"}
+export ETH_GAS=${ETH_GAS:-"4500000"}
+export ETH_FROM=${ETH_FROM:-$(seth rpc eth_coinbase)}
+
+dapp build
+
+(test -z $SAI_TUB) && exit 1
+
+export SETH_ASYNC=yes
+PROXY_FACTORYtx=$(dapp create DSProxyFactory)
+PROXY_CREATEtx=$(dapp create ProxyCreationAndExecute $SAI_TUB)
+TUB_PROXYtx=$(dapp create TubProxy)
+export SETH_ASYNC=no
+PROXY_FACTORY=$(seth receipt $PROXY_FACTORYtx contractAddress)
+PROXY_CREATE=$(seth receipt $PROXY_CREATEtx contractAddress)
+TUB_PROXY=$(seth receipt $TUB_PROXYtx contractAddress)
+
+cat > load-env-$(seth chain) << EOF
+#!/bin/bash
+
+# sai deployment on $(seth chain) from $(git rev-parse HEAD)
+# $(date)
+
+export PROXY_FACTORY=$PROXY_FACTORY
+export PROXY_CREATE=$PROXY_CREATE
+export TUB_PROXY=$TUB_PROXY
+EOF

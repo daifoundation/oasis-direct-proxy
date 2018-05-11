@@ -1,1 +1,4 @@
-/out
+load-env-*
+node_modules/
+out/
+yarn-error.log
