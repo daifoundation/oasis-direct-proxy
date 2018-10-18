@@ -3,10 +3,10 @@ pragma solidity ^0.4.16;
 import "./OasisDirectProxy.sol";
 import "ds-proxy/proxy.sol";
 
-contract ProxyCreationAndExecute is OasisDirectProxy {
+contract OasisDirectProxyCreateAndExecute is OasisDirectProxy {
     TokenInterface wethToken;
 
-    function ProxyCreationAndExecute(address wethToken_) {
+    function OasisDirectProxyCreateAndExecute(address wethToken_) {
         wethToken = TokenInterface(wethToken_);
     }
 

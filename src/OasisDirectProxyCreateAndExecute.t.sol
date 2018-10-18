@@ -1,10 +1,10 @@
 pragma solidity ^0.4.16;
 
 import "./OasisDirectProxy.t.sol";
-import "./ProxyCreationAndExecute.sol";
+import "./OasisDirectProxyCreateAndExecute.sol";
 
-contract ProxyCreationAndExecuteTest is DSTest {
-    ProxyCreationAndExecute creator;
+contract OasisDirectProxyCreateAndExecuteTest is DSTest {
+    OasisDirectProxyCreateAndExecute creator;
     DSProxyFactory factory;
     MatchingMarket otc;
     WETH weth;
@@ -15,7 +15,7 @@ contract ProxyCreationAndExecuteTest is DSTest {
         weth = new WETH();
         mkr = new DSToken("MKR");
 
-        creator = new ProxyCreationAndExecute(weth);
+        creator = new OasisDirectProxyCreateAndExecute(weth);
         factory = new DSProxyFactory();
         otc = new MatchingMarket(uint64(now + 1 weeks));
         otc.addTokenPairWhitelist(weth, mkr);
