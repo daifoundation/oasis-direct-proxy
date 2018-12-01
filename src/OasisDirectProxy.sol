@@ -1,11 +1,11 @@
-pragma solidity ^0.4.16;
+pragma solidity >0.4.99 <0.6.0;
 
 import "ds-math/math.sol";
 
 contract OtcInterface {
     function sellAllAmount(address, uint, address, uint) public returns (uint);
     function buyAllAmount(address, uint, address, uint) public returns (uint);
-    function getPayAmount(address, address, uint) public constant returns (uint);
+    function getPayAmount(address, address, uint) public view returns (uint);
 }
 
 contract TokenInterface {
@@ -21,68 +21,101 @@ contract TokenInterface {
 contract OasisDirectProxy is DSMath {
     function withdrawAndSend(TokenInterface wethToken, uint wethAmt) internal {
         wethToken.withdraw(wethAmt);
-        require(msg.sender.call.value(wethAmt)());
+        (bool success,) = msg.sender.call.value(wethAmt)("");
+        require(success, "withdraw-failed");
     }
 
-    function sellAllAmount(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken, uint minBuyAmt) public returns (uint buyAmt) {
-        require(payToken.transferFrom(msg.sender, this, payAmt));
-        if (payToken.allowance(this, otc) < payAmt) {
-            payToken.approve(otc, uint(-1));
+    function sellAllAmount(
+        OtcInterface otc,
+        TokenInterface payToken,
+        uint payAmt,
+        TokenInterface buyToken,
+        uint minBuyAmt
+    ) public returns (uint buyAmt) {
+        require(payToken.transferFrom(msg.sender, address(this), payAmt), "payToken-transferFrom-fail");
+        if (payToken.allowance(address(this), address(otc)) < payAmt) {
+            payToken.approve(address(otc), uint(-1));
         }
-        buyAmt = otc.sellAllAmount(payToken, payAmt, buyToken, minBuyAmt);
-        require(buyToken.transfer(msg.sender, buyAmt));
+        buyAmt = otc.sellAllAmount(address(payToken), payAmt, address(buyToken), minBuyAmt);
+        require(buyToken.transfer(msg.sender, buyAmt), "buyToken-transfer-fail");
     }
 
-    function sellAllAmountPayEth(OtcInterface otc, TokenInterface wethToken, TokenInterface buyToken, uint minBuyAmt) public payable returns (uint buyAmt) {
+    function sellAllAmountPayEth(
+        OtcInterface otc,
+        TokenInterface wethToken,
+        TokenInterface buyToken,
+        uint minBuyAmt
+    ) public payable returns (uint buyAmt) {
         wethToken.deposit.value(msg.value)();
-        if (wethToken.allowance(this, otc) < msg.value) {
-            wethToken.approve(otc, uint(-1));
+        if (wethToken.allowance(address(this), address(otc)) < msg.value) {
+            wethToken.approve(address(otc), uint(-1));
         }
-        buyAmt = otc.sellAllAmount(wethToken, msg.value, buyToken, minBuyAmt);
-        require(buyToken.transfer(msg.sender, buyAmt));
+        buyAmt = otc.sellAllAmount(address(wethToken), msg.value, address(buyToken), minBuyAmt);
+        require(buyToken.transfer(msg.sender, buyAmt), "buyToken-transfer-fail");
     }
 
-    function sellAllAmountBuyEth(OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface wethToken, uint minBuyAmt) public returns (uint wethAmt) {
-        require(payToken.transferFrom(msg.sender, this, payAmt));
-        if (payToken.allowance(this, otc) < payAmt) {
-            payToken.approve(otc, uint(-1));
+    function sellAllAmountBuyEth(
+        OtcInterface otc,
+        TokenInterface payToken,
+        uint payAmt,
+        TokenInterface wethToken,
+        uint minBuyAmt
+    ) public returns (uint wethAmt) {
+        require(payToken.transferFrom(msg.sender, address(this), payAmt), "payToken-transferFrom-fail");
+        if (payToken.allowance(address(this), address(otc)) < payAmt) {
+            payToken.approve(address(otc), uint(-1));
         }
-        wethAmt = otc.sellAllAmount(payToken, payAmt, wethToken, minBuyAmt);
+        wethAmt = otc.sellAllAmount(address(payToken), payAmt, address(wethToken), minBuyAmt);
         withdrawAndSend(wethToken, wethAmt);
     }
 
-    function buyAllAmount(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
-        uint payAmtNow = otc.getPayAmount(payToken, buyToken, buyAmt);
-        require(payAmtNow <= maxPayAmt);
-        require(payToken.transferFrom(msg.sender, this, payAmtNow));
-        if (payToken.allowance(this, otc) < payAmtNow) {
-            payToken.approve(otc, uint(-1));
+    function buyAllAmount(
+        OtcInterface otc,
+        TokenInterface buyToken,
+        uint buyAmt,
+        TokenInterface payToken,
+        uint maxPayAmt
+    ) public returns (uint payAmt) {
+        require(payToken.transferFrom(msg.sender, address(this), maxPayAmt), "payToken-transferFrom-fail");
+        if (payToken.allowance(address(this), address(otc)) < maxPayAmt) {
+            payToken.approve(address(otc), uint(-1));
         }
-        payAmt = otc.buyAllAmount(buyToken, buyAmt, payToken, payAmtNow);
-        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(this)))); // To avoid rounding issues we check the minimum value
+        payAmt = otc.buyAllAmount(address(buyToken), buyAmt, address(payToken), maxPayAmt);
+        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(address(this)))), "buyToken-transfer-fail"); // To avoid rounding issues we check the minimum value
+        require(payToken.transfer(msg.sender, sub(maxPayAmt, payAmt)), "payToken-transfer-fail");
     }
 
-    function buyAllAmountPayEth(OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface wethToken) public payable returns (uint wethAmt) {
+    function buyAllAmountPayEth(
+        OtcInterface otc,
+        TokenInterface buyToken,
+        uint buyAmt,
+        TokenInterface wethToken
+    ) public payable returns (uint wethAmt) {
         // In this case user needs to send more ETH than a estimated value, then contract will send back the rest
         wethToken.deposit.value(msg.value)();
-        if (wethToken.allowance(this, otc) < msg.value) {
-            wethToken.approve(otc, uint(-1));
+        if (wethToken.allowance(address(this), address(otc)) < msg.value) {
+            wethToken.approve(address(otc), uint(-1));
         }
-        wethAmt = otc.buyAllAmount(buyToken, buyAmt, wethToken, msg.value);
-        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(this)))); // To avoid rounding issues we check the minimum value
+        wethAmt = otc.buyAllAmount(address(buyToken), buyAmt, address(wethToken), msg.value);
+        require(buyToken.transfer(msg.sender, min(buyAmt, buyToken.balanceOf(address(this)))), "buyToken-transfer-fail"); // To avoid rounding issues we check the minimum value
         withdrawAndSend(wethToken, sub(msg.value, wethAmt));
     }
 
-    function buyAllAmountBuyEth(OtcInterface otc, TokenInterface wethToken, uint wethAmt, TokenInterface payToken, uint maxPayAmt) public returns (uint payAmt) {
-        uint payAmtNow = otc.getPayAmount(payToken, wethToken, wethAmt);
-        require(payAmtNow <= maxPayAmt);
-        require(payToken.transferFrom(msg.sender, this, payAmtNow));
-        if (payToken.allowance(this, otc) < payAmtNow) {
-            payToken.approve(otc, uint(-1));
+    function buyAllAmountBuyEth(
+        OtcInterface otc,
+        TokenInterface wethToken,
+        uint wethAmt,
+        TokenInterface payToken,
+        uint maxPayAmt
+    ) public returns (uint payAmt) {
+        require(payToken.transferFrom(msg.sender, address(this), maxPayAmt), "payToken-transferFrom-fail");
+        if (payToken.allowance(address(this), address(otc)) < maxPayAmt) {
+            payToken.approve(address(otc), uint(-1));
         }
-        payAmt = otc.buyAllAmount(wethToken, wethAmt, payToken, payAmtNow);
+        payAmt = otc.buyAllAmount(address(wethToken), wethAmt, address(payToken), maxPayAmt);
         withdrawAndSend(wethToken, wethAmt);
+        require(payToken.transfer(msg.sender, sub(maxPayAmt, payAmt)), "payToken-transfer-fail");
     }
 
-    function() public payable {}
+    function() external payable {}
 }
