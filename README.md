@@ -29,13 +29,30 @@ The main methods are the `sellAllAmount*` and `buyAllAmount*` and the other meth
 
 **Other**:
 
-`payable` : Enables a contract to collect / receive funds in *`ETH`*
+`payable` : A modifier that enables a contract to collect / receive funds in *`ETH`*
 
-`Threshold`: The threshold works by determining the lowest possible price that allows the trade to go through and close. The threshold sets limit values for  `minBuyAmt` and  `maxBuyAmt`. The reason behind the use of `threshold` and its limits is because in some cases when a user submits a transaction, by the time the transaction is actually executed, a [slippage](https://www.investopedia.com/terms/s/slippage.asp) may occur in the price. Thus, if the prices drop below the limit, the transaction fails and everything is reverted. In order to understand exactly what `threshold` does, let's go though a quick example:
+#### How to sell tokens:
 
-**Threshold Example:** Let's say that someone wants to sell `10 MKR` at the price of `1.5 MKR/DAI`. Suppose the `buyAmt` will be `150 DAI`. By the time the transaction is executed, a [slippage](https://www.investopedia.com/terms/s/slippage.asp) may occur. This means that the price might have dropped to `1.2 MKR/DAI` and the caller will receive `120 DAI` instead of the exact uint `wethAmt` that was expected ( `150 DAI`). In order to mitigate such scenarios, we introduced **threshold** (`minBuyAmt` or `maxPayAmt`).
+When a trade occurs, there is always a token that is sold and one that is bought. Using OasisDirectProxy one can sell tokens using both sellAll* and buyAll* methods. There is a significant difference regarding the amounts that will be sold/bought when different methods are used. In the examples below, we will try to highlight the differences and explain in detail when one should use each of the methods.
 
-The value provided by threshold is that it determines the lowest possible price that allows the trade to go through and close. However, if the prices drop below the limit, the transaction fails and everything is reverted. Following the example above, one can provide a value (in base units) such as `140 DAI`. This will allow the transaction to pass and then the trade will be deemed successful if the price of `MKR/DAI` does not drop below `1.4 MKR/DAI`.
+All of the scenarios will include the following prerequisites:
+ -- One would like to exchange (sell) `MKR` for (buy) `DAI`.
+ -- The price is `15 MKR/DAI`
+
+ - ***Case Scenario 1:*** -    In this scenario, the market price will not fluctuate but will be stable, therefore no [slippage](https://www.investopedia.com/terms/s/slippage.asp) will occur in the price. Additionally, the caller would like to sell `10 MKR`. At the given price of `MKR`, this means that the caller will receive `150 DAI`. Due to the fact that the price is stable and won't fluctuate before the trade is completed, the caller might use both the `sellAllAmount` or `buyAllAmount` and because of this they will sell exactly `10 MKR` and will receive exactly `150 DAI` in return. 
+ - ***Case Scenario 2*** -   This scenario highlights when [slippage](https://www.investopedia.com/terms/s/slippage.asp) occurs and when the price decreases. In the case when the price is not stable it gets a little more complicated. This is because from the moment when a trade transaction is initiated until when it is confirmed, many things can happen. For example, if the caller wants to sell `10 MKR` and the price falls to `10 MKR/DAI`, the caller will receive only `100 DAI`. Again, the caller might use either `sellAllAmount` or `buyAllAmount`. The following scenarios capture this:
+	 - ***Case Scenario 2.1*** - This scenario captures the situation when the caller is aware of the price and their goal is to sell `10 MKR` and get as much DAI as possible. This is when they might use the `sellAllAmount` method. As shown above, the price might decrease significantly. In order to protect the caller from losing a large amount of their funds, we introduced the `minBuyAmt` parameter. For example, let’s say that there is a scenario where we will use `140 DAI` as `minBuyAmt`. This means that the caller would like to receive at least `140 DAI` in the trade. In the situation where slippage occurs, this may cause the price to drop below `14 MKR/DAI` which in turn causes the transaction to fail and revert.
+	 - ***Case Scenario 2.2*** - This scenario captures the situation when the caller is aware of the price and would like to sell MKR and get `150 DAI`. In this case, one can use `buyAllAmount` method. Again, the price might decrease and the caller might pay more than `10 MKR` in order to get their desired `150 DAI`. In order to protect the caller from spending too much, we introduced the `maxPayAmt` parameter. For example, let’s say that we will use `11 MKR to trade. This means that the caller would like to deposit a maximum of `11 MKR`. In the situation where slippage occurs, the price drops below `~13.63 MKR/DAI` and therefor transaction will fail and revert.
+
+ - ***Case Scenario 3:*** -  This scenario highlights a situation when a positive [slippage](https://www.investopedia.com/terms/s/slippage.asp) occurs and the price increases. For example, let’s say the price moves from `15 MKR/DAI` to `20 MKR/DAI`. Again, the caller might use both `sellAllAmount` and `buyAllAmount`. The caller has to decide between two options based on their current priority: 
+
+    1. Sell all of their tokens and get as much as possible. 
+    2. Receive some fixed amount of the quote and pay as little as possible.
+
+   - ***Case Scenario 3.1:*** -  This scenario captures the situation where a caller is interested in selling `10 MKR`. By calling `sellAllAmount`, they will sell all of the `10 MKR` at the price of `20 MKR/DAI` and will receive `200 DAI`.
+   - ***Case Scenario 3.2:*** - This scenario captures the situation where the caller is interested in buying `150 DAI`. By calling `buyAllAmount` the caller will sell only `7.5 MKR` at the price of `20 MKR/DAI` in order to receive the desired amount in `DAI`.
+
+`Threshold`: It is a collective term to refer to the `maxSellAmount` and `minBuyAmount` paramters. Why and when to use them once can refer to the case scenarios described above.
 
 ## OTC Interface Contract
 
@@ -67,7 +84,7 @@ This contract is an interface which contains `ERC-20 token` methods as well as m
 
 The purpose of this function is to withdraw the locked up `ETH` from the `WETH token` contract and then send it to the caller.
 
-**Arguments:**
+**Parameters:**
 
 - `TokenInterface wethToken` - The address of the `WETH token` contract.
 - `uint wethAmt` - The amount which will be withdrawn and sent.
@@ -82,7 +99,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** `sellAllAmount` is used when triggering an ERC-20 for ERC-20 exchange, where the `payAmt` is sent to this contract from the caller. After that, the `otc` contract is guaranteed to have enough allowance in the `payToken` to do transfers on behalf of `this` contract. The next step is to proceed and sell the `payToken`. Lastly, the transfer occurs for the `buyAmt` to the caller.
 
-**Arguments:**
+**Parameters:**
 
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - This represents the contract address of the OTC market contract (where only a few methods are exposed).
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `payToken` - An address of any `ERC-20 token` or token that implements the interface of it.
@@ -106,7 +123,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** The `sellAllAmountPayEth` method is  used when triggering an`ETH` for `ERC-20 token`exchange. The process begins when `ETH` is sent, it is then wrapped into `WETH token` and once the `otc` is guaranteed to have enough allowance, the locked `WETH` is then sold on the `otc` using `minBuyAmt` as a safeguard against slippage. Lastly, the `buyAmt` is sent back to the caller.
 
-**Arguments:**
+**Parameters:**
 
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `payToken` - An address of any `ERC-20 token` or token that implements the interface.
@@ -132,7 +149,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** The `sellAllAmountBuyEth`  is used when triggering an `ERC-20 token` for `ETH` exchange method has the same functionality as mentioned in `sellAllAmount` but with a difference, which is the withdrawal of the purchased `wethAmt` from the `WETH token` contract and then sending it to the caller in the form of native `ETH`.
 
-**Arguments:**
+**Parameters:**
 
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `payToken` - An address of any `ERC-20 token` or token that implements the interface.
@@ -156,7 +173,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:**  `buyAllAmount`  is used when triggering an `ERC-20 token` for `ERC-20 token` exchange. It calculates the amount to be paid, then the `payAmt` is transferred to this contract. Next, the `otc` contract is guaranteed to have enough allowance in the `payToken` to perform transfers on behalf of `this` contract. Follows a buy operation, where `buyAmt` is bought. Lastly, the transfer of the purchased amount to the caller occurs.
 
-**Arguments:**
+**Parameters:**
 
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `buyToken` - An address of any `ERC-20 token` or token that implements the interface.
@@ -184,7 +201,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Disclaimer:** It is important to note that there is neither `minBuyAmt` nor `maxPayAmt` here. It works by having the caller of the method take into account the slippage that might occur and thus send more `ETH` (the max amount he is willing to pay in order to get the `buyAmt`). If less amount of ETH is spent to get the buyAmt, the remaining amount of the sent ETH is returned to the caller.
 
-**Arguments:**
+**Parameters:**
 
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `buyToken` - An address of any `ERC-20 token` or token that implements the interface.
@@ -211,7 +228,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** `buyAllAmountBuyEth`  is used when triggering an `ERC-20 token` for `ETH` exchange. The `wethAmt` is bought and then a transfer of the `wethAmt` to the caller occurs.
 
-**Arguments:**
+**Parameters:**
 
 - OtcInterface `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `wethToken` - The address of the `WETH token`.
@@ -239,13 +256,14 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 # [ProxyCreateAndExecute Contract](https://github.com/makerdao/oasis-direct-proxy/blob/gg/readme/src/ProxyCreationAndExecute.sol)
 
-**Summary:** The `ProxyCreateAndExecute` allows the caller of the contract to create a proxy and exchange tokens by extending the `OasisDirectProxy` contract. One of the main call methods is the `DSProxyFactor.build`. This method creates a new proxy for a sender address. The other call in each of the additional methods is used to retrieve the amount that will be `sold` or `bought`.
+**Summary:** The `ProxyCreateAndExecute` allows the caller of the contract to create a proxy and exchange tokens within a ***single transaction***. It extends the `OasisDirectProxy` contract. If one is not interested in creating a proxy then using only `OasisDirectProxy` is sufficient.
+One of the main call methods is the `DSProxyFactor.build`. This method creates a new proxy for a sender address. The other call in each of the additional methods is used to retrieve the amount that will be `sold` or `bought`.
 
 ### Constructor
 
 **Summary:** This is used to inject the `WETH` token address which is used in some of the methods described below.
 
-**Arguments**:
+**Parameters:**:
 
 - `address wethToken` - The address of the [WETH](https://github.com/dapphub/ds-weth/blob/master/src/weth9.sol) token.
 
@@ -255,7 +273,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** `createAndSellAllAmount`  creates a proxy and calls `sellAllAmount`.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory`- An address to the factory that will create a unique and one-time only proxy for each of the callers.
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
@@ -279,7 +297,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 - `payable`- Added to enable the receipt of Eth.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory` - An address of the factory that will create a unique and one-time only proxy for each of the callers.
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
@@ -297,7 +315,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** `createAndSellAllAmountBuyEth` creates a proxy and calls `sellAllAmountBuyEth`.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory` - An address to the factory that will create a unique and one-time only proxy for each of the callers.
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
@@ -316,7 +334,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary:** `createAndBuyAllAmount` creates a proxy and calls `buyAllAmount`.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory` - An address to the factory that will create an unique and one-time only proxy for each of the callers.
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
@@ -338,14 +356,14 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Note:** This further explained at the beginning of the documentation for this contract.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory` - An address to the factory that will create an unique and one-time only proxy for each of the callers
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
 - [TokenInterface](https://github.com/makerdao/oasis-direct-proxy/blob/master/src/OasisDirectProxy.sol#L11) `buyToken` - An address of any `ERC-20 token`.
 - `uint buyAmt` - The amount that will be purchased.
 
-**Arguments**:
+**Parameters:**:
 
 - `payable`- Added to enable the receipt of Eth.
 
@@ -360,7 +378,7 @@ The purpose of this function is to withdraw the locked up `ETH` from the `WETH t
 
 **Summary**: `createAndBuyAllAmountBuyEth` creates a proxy and calls `buyAllAmountBuyEth`.
 
-**Arguments**:
+**Parameters:**:
 
 - [DSProxyFactory](https://github.com/dapphub/ds-proxy/blob/master/src/proxy.sol#L96) `factory` - An address to the factory that will create an unique and one-time only proxy for each of the callers.
 - [OtcInterface](https://github.com/makerdao/maker-otc-support-methods/blob/master/src/MakerOtcSupportMethods.sol#L5) `otc` - An address of the contract that represents the OTC market contract.
