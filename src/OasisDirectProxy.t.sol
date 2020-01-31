@@ -1,4 +1,4 @@
-pragma solidity ^0.4.16;
+pragma solidity ^0.5.12;
 
 import "ds-test/test.sol";
 import "ds-token/token.sol";
@@ -6,9 +6,7 @@ import "maker-otc/matching_market.sol";
 import "ds-proxy/proxy.sol";
 import "./OasisDirectProxy.sol";
 
-contract WETH is DSToken {
-    function WETH() DSToken("WETH") public {}
-
+contract WETH is DSToken("WETH") {
     function deposit() public payable {
         _balances[msg.sender] = add(_balances[msg.sender], msg.value);
         _supply = add(_supply, msg.value);
@@ -17,19 +15,20 @@ contract WETH is DSToken {
     function withdraw(uint amount) public {
         _balances[msg.sender] = sub(_balances[msg.sender], amount);
         _supply = sub(_supply, amount);
-        require(msg.sender.call.value(amount)());
+        (bool ok,) = msg.sender.call.value(amount)("");
+        require(ok, "");
     }
 }
 
 contract FakeUser {
     MatchingMarket otc;
 
-    function FakeUser(MatchingMarket otc_) public {
+    constructor(MatchingMarket otc_) public {
         otc = otc_;
     }
 
     function doApprove(address token) public {
-        ERC20(token).approve(otc, uint(-1));
+        ERC20(token).approve(address(otc), uint(-1));
     }
 
     function doOffer(uint amount1, address token1, uint amount2, address token2) public {
@@ -55,280 +54,291 @@ contract OasisDirectProxyTest is DSTest {
 
         oasisProxy = new OasisDirectProxy();
         otc = new MatchingMarket(uint64(now + 1 weeks));
-        otc.addTokenPairWhitelist(weth, mkr);
-        weth.approve(otc);
-        mkr.approve(otc);
+        weth.approve(address(otc));
+        mkr.approve(address(otc));
         user = new FakeUser(otc);
-        user.doApprove(weth);
-        user.doApprove(mkr);
+        user.doApprove(address(weth));
+        user.doApprove(address(mkr));
 
         DSProxyFactory factory = new DSProxyFactory();
-        proxy = factory.build();
+        proxy = DSProxy(factory.build());
     }
 
-    function sellAllAmount(address otc_, address payToken_, uint payAmt_, address buyToken_, uint minBuyAmt_) external returns (bytes32) {
-        otc_;payToken_;payAmt_;buyToken_;minBuyAmt_;
-        return proxy.execute(oasisProxy, msg.data);
+    function sellAllAmount(address, address, uint, address, uint) external returns (uint amt) {
+        bytes memory response = proxy.execute(address(oasisProxy), msg.data);
+        assembly {
+            amt := mload(add(response, 0x20))
+        }
     }
 
-    function sellAllAmountPayEth(OtcInterface otc_, TokenInterface wethToken_, TokenInterface buyToken_, uint minBuyAmt_) external payable {
-        otc_;wethToken_;buyToken_;minBuyAmt_;
-        assert(address(proxy).call.value(msg.value)(bytes4(keccak256("execute(address,bytes)")), oasisProxy, uint256(0x40), msg.data.length, msg.data));
+    function sellAllAmountPayEth(address, address, address, uint) external payable {
+        (bool ok,) = address(proxy).call.value(msg.value)(
+            abi.encodeWithSignature("execute(address,bytes)", address(oasisProxy), msg.data)
+        );
+        assert(ok);
     }
 
-    function sellAllAmountBuyEth(OtcInterface otc_, TokenInterface payToken_, uint payAmt_, TokenInterface wethToken_, uint minBuyAmt_) external returns (bytes32) {
-        otc_;payToken_;payAmt_;wethToken_;minBuyAmt_;
-        return proxy.execute(oasisProxy, msg.data);
+    function sellAllAmountBuyEth(address, address , uint, address, uint) external returns (uint amt) {
+        bytes memory response = proxy.execute(address(oasisProxy), msg.data);
+        assembly {
+            amt := mload(add(response, 0x20))
+        }
     }
 
-    function buyAllAmount(OtcInterface otc_, TokenInterface buyToken_, uint buyAmt_, TokenInterface payToken_, uint maxPayAmt_) external returns (bytes32) {
-        otc_;buyToken_;buyAmt_;payToken_;maxPayAmt_;
-        return proxy.execute(oasisProxy, msg.data);
+    function buyAllAmount(address, address, uint, address, uint) external returns (uint amt) {
+        bytes memory response = proxy.execute(address(oasisProxy), msg.data);
+        assembly {
+            amt := mload(add(response, 0x20))
+        }
     }
 
-    function buyAllAmountPayEth(OtcInterface otc_, TokenInterface buyToken_, uint buyAmt_, TokenInterface wethToken_) external payable {
-        otc_;buyToken_;buyAmt_;wethToken_;
-        assert(address(proxy).call.value(msg.value)(bytes4(keccak256("execute(address,bytes)")), oasisProxy, uint256(0x40), msg.data.length, msg.data));
+    function buyAllAmountPayEth(address, address, uint, address) external payable {
+        (bool ok,) = address(proxy).call.value(msg.value)(
+            abi.encodeWithSignature("execute(address,bytes)", address(oasisProxy), msg.data)
+        );
+        assert(ok);
     }
 
-    function buyAllAmountBuyEth(OtcInterface otc_, TokenInterface wethToken_, uint wethAmt_, TokenInterface payToken_, uint maxPayAmt_) external returns (bytes32) {
-        otc_;wethToken_;wethAmt_;payToken_;maxPayAmt_;
-        return proxy.execute(oasisProxy, msg.data);
+    function buyAllAmountBuyEth(address, address, uint, address, uint) external returns (uint amt) {
+        bytes memory response = proxy.execute(address(oasisProxy), msg.data);
+        assembly {
+            amt := mload(add(response, 0x20))
+        }
     }
 
     function createOffers(uint oQuantity, uint mkrAmount, uint wethAmount) public {
         for (uint i = 0; i < oQuantity; i ++) {
-            user.doOffer(wethAmount / oQuantity, weth, mkrAmount / oQuantity, mkr);
+            user.doOffer(wethAmount / oQuantity, address(weth), mkrAmount / oQuantity, address(mkr));
         }
     }
 
     function testProxySellAll() public {
         weth.mint(20 ether);
-        weth.transfer(user, 20 ether);
+        weth.transfer(address(user), 20 ether);
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4000 ether);
-        mkr.approve(oasisProxy, 4000 ether);
-        assertEq(weth.balanceOf(this), 0); // Balance token to buy
-        assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
+        mkr.approve(address(oasisProxy), 4000 ether);
+        assertEq(weth.balanceOf(address(this)), 0); // Balance token to buy
+        assertEq(mkr.balanceOf(address(this)), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = gasleft();
-        uint buyAmt = oasisProxy.sellAllAmount(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
+        uint buyAmt = oasisProxy.sellAllAmount(address(otc), address(mkr), 4000 ether, address(weth), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
-        assertEq(weth.balanceOf(this), buyAmt); // Balance token bought
-        assertEq(mkr.balanceOf(this), 0); // Balance token sold
+        assertEq(weth.balanceOf(address(this)), buyAmt); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token sold
     }
 
     function testProxySellAll2() public {
         weth.mint(20 ether);
-        weth.transfer(user, 20 ether);
+        weth.transfer(address(user), 20 ether);
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4000 ether);
-        mkr.approve(proxy, 4000 ether);
-        assertEq(weth.balanceOf(this), 0); // Balance token to buy
-        assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
+        mkr.approve(address(proxy), 4000 ether);
+        assertEq(weth.balanceOf(address(this)), 0); // Balance token to buy
+        assertEq(mkr.balanceOf(address(this)), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = gasleft();
-        uint buyAmt = uint(this.sellAllAmount(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult));
+        uint buyAmt = uint(this.sellAllAmount(address(otc), address(mkr), 4000 ether, address(weth), expectedResult));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
-        assertEq(weth.balanceOf(this), buyAmt); // Balance token bought
-        assertEq(mkr.balanceOf(this), 0); // Balance token sold
+        assertEq(weth.balanceOf(address(this)), buyAmt); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token sold
     }
 
     function testProxySellAllPayEth() public {
         uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
-        mkr.transfer(user, 6000 ether);
-        user.doOffer(3200 ether, mkr, 10 ether, weth);
-        user.doOffer(2800 ether, mkr, 10 ether, weth);
-        assertEq(mkr.balanceOf(this), 0); // Balance token to buy
+        mkr.transfer(address(user), 6000 ether);
+        user.doOffer(3200 ether, address(mkr), 10 ether, address(weth));
+        user.doOffer(2800 ether, address(mkr), 10 ether, address(weth));
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 3200 ether * 10 / 10 + 2800 ether * 5 / 10;
         uint startGas = gasleft();
-        uint buyAmt = oasisProxy.sellAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(weth), TokenInterface(mkr), expectedResult);
+        uint buyAmt = oasisProxy.sellAllAmountPayEth.value(15 ether)(address(otc), address(weth), address(mkr), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
-        assertEq(mkr.balanceOf(this), buyAmt); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), buyAmt); // Balance token bought
         assertEq(address(this).balance, initialBalance - 15 ether); // Balance ETH
     }
 
     function testProxySellAllPayEth2() public {
         uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
-        mkr.transfer(user, 6000 ether);
-        user.doOffer(3200 ether, mkr, 10 ether, weth);
-        user.doOffer(2800 ether, mkr, 10 ether, weth);
-        assertEq(mkr.balanceOf(this), 0); // Balance token to buy
+        mkr.transfer(address(user), 6000 ether);
+        user.doOffer(3200 ether, address(mkr), 10 ether, address(weth));
+        user.doOffer(2800 ether, address(mkr), 10 ether, address(weth));
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 3200 ether * 10 / 10 + 2800 ether * 5 / 10;
-        uint buyAmt = mkr.balanceOf(this);
+        uint buyAmt = mkr.balanceOf(address(this));
         uint startGas = gasleft();
-        this.sellAllAmountPayEth.value(15 ether)(OtcInterface(otc), TokenInterface(weth), TokenInterface(mkr), expectedResult);
+        this.sellAllAmountPayEth.value(15 ether)(address(otc), address(weth), address(mkr), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
-        buyAmt = mkr.balanceOf(this) - buyAmt;
+        emit log_named_uint('Gas', startGas - endGas);
+        buyAmt = mkr.balanceOf(address(this)) - buyAmt;
         assertEq(buyAmt, expectedResult);
-        assertEq(mkr.balanceOf(this), buyAmt); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), buyAmt); // Balance token bought
         assertEq(address(this).balance, initialBalance - 15 ether); // Balance ETH
     }
 
     function testProxySellAllBuyEth() public {
-        user.doDeposit.value(20 ether)(weth);
-        user.doOffer(10 ether, weth, 3200 ether, mkr);
-        user.doOffer(10 ether, weth, 2800 ether, mkr);
+        user.doDeposit.value(20 ether)(address(weth));
+        user.doOffer(10 ether, address(weth), 3200 ether, address(mkr));
+        user.doOffer(10 ether, address(weth), 2800 ether, address(mkr));
         uint initialBalance = address(this).balance;
         mkr.mint(4000 ether);
-        mkr.approve(oasisProxy, 4000 ether);
+        mkr.approve(address(oasisProxy), 4000 ether);
         assertEq(address(this).balance, initialBalance); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
+        assertEq(mkr.balanceOf(address(this)), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = gasleft();
-        uint buyAmt = oasisProxy.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult);
+        uint buyAmt = oasisProxy.sellAllAmountBuyEth(address(otc), address(mkr), 4000 ether, address(weth), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + expectedResult); // Balance ETH
-        assertEq(mkr.balanceOf(this), 0); // Balance token sold
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token sold
     }
 
     function testProxySellAllBuyEth2() public {
-        user.doDeposit.value(20 ether)(weth);
-        user.doOffer(10 ether, weth, 3200 ether, mkr);
-        user.doOffer(10 ether, weth, 2800 ether, mkr);
+        user.doDeposit.value(20 ether)(address(weth));
+        user.doOffer(10 ether, address(weth), 3200 ether, address(mkr));
+        user.doOffer(10 ether, address(weth), 2800 ether, address(mkr));
         uint initialBalance = address(this).balance;
         mkr.mint(4000 ether);
-        mkr.approve(proxy, 4000 ether);
+        mkr.approve(address(proxy), 4000 ether);
         assertEq(address(this).balance, initialBalance); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4000 ether); // Balance token to sell
+        assertEq(mkr.balanceOf(address(this)), 4000 ether); // Balance token to sell
         uint expectedResult = 10 ether * 2800 / 2800 + 10 ether * 1200 / 3200;
         uint startGas = gasleft();
-        uint buyAmt = uint(this.sellAllAmountBuyEth(OtcInterface(otc), TokenInterface(mkr), 4000 ether, TokenInterface(weth), expectedResult));
+        uint buyAmt = uint(this.sellAllAmountBuyEth(address(otc), address(mkr), 4000 ether, address(weth), expectedResult));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(buyAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + expectedResult); // Balance ETH
-        assertEq(mkr.balanceOf(this), 0); // Balance token sold
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token sold
     }
 
     function testProxyBuyAll() public {
         weth.mint(20 ether);
-        weth.transfer(user, 20 ether);
+        weth.transfer(address(user), 20 ether);
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4400 ether);
-        mkr.approve(oasisProxy, 4400 ether);
-        assertEq(weth.balanceOf(this), 0); // Balance token to buy
-        assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
+        mkr.approve(address(oasisProxy), 4400 ether);
+        assertEq(weth.balanceOf(address(this)), 0); // Balance token to buy
+        assertEq(mkr.balanceOf(address(this)), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = gasleft();
-        uint payAmt = oasisProxy.buyAllAmount(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
+        uint payAmt = oasisProxy.buyAllAmount(address(otc), address(weth), 15 ether, address(mkr), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
-        assertEq(weth.balanceOf(this), 15 ether); // Balance token bought
-        assertEq(mkr.balanceOf(this), 4400 ether - payAmt); // Balance token sold
+        assertEq(weth.balanceOf(address(this)), 15 ether); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 4400 ether - payAmt); // Balance token sold
     }
 
     function testProxyBuyAll2() public {
         weth.mint(20 ether);
-        weth.transfer(user, 20 ether);
+        weth.transfer(address(user), 20 ether);
         createOffers(1, 3200 ether, 10 ether);
         createOffers(1, 2800 ether, 10 ether);
         mkr.mint(4400 ether);
-        mkr.approve(proxy, 4400 ether);
-        assertEq(weth.balanceOf(this), 0); // Balance token to buy
-        assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
+        mkr.approve(address(proxy), 4400 ether);
+        assertEq(weth.balanceOf(address(this)), 0); // Balance token to buy
+        assertEq(mkr.balanceOf(address(this)), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = gasleft();
-        uint payAmt = uint(this.buyAllAmount(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult));
+        uint payAmt = uint(this.buyAllAmount(address(otc), address(weth), 15 ether, address(mkr), expectedResult));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
-        assertEq(weth.balanceOf(this), 15 ether); // Balance token bought
-        assertEq(mkr.balanceOf(this), 4400 ether - payAmt); // Balance token sold
+        assertEq(weth.balanceOf(address(this)), 15 ether); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 4400 ether - payAmt); // Balance token sold
     }
 
     function testProxyBuyAllPayEth() public {
         uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
-        mkr.transfer(user, 6000 ether);
-        user.doOffer(3200 ether, mkr, 10 ether, weth);
-        user.doOffer(2800 ether, mkr, 10 ether, weth);
-        assertEq(mkr.balanceOf(this), 0); // Balance token to buy
+        mkr.transfer(address(user), 6000 ether);
+        user.doOffer(3200 ether, address(mkr), 10 ether, address(weth));
+        user.doOffer(2800 ether, address(mkr), 10 ether, address(weth));
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
         uint startGas = gasleft();
-        uint payAmt = oasisProxy.buyAllAmountPayEth.value(expectedResult)(OtcInterface(otc), TokenInterface(mkr), 4600 ether, TokenInterface(weth));
+        uint payAmt = oasisProxy.buyAllAmountPayEth.value(expectedResult)(address(otc), address(mkr), 4600 ether, address(weth));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
-        assertEq(mkr.balanceOf(this), 4600 ether); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 4600 ether); // Balance token bought
         assertEq(address(this).balance, initialBalance - payAmt); // Balance ETH
     }
 
     function testProxyBuyAllPayEth2() public {
         uint initialBalance = address(this).balance;
         mkr.mint(6000 ether);
-        mkr.transfer(user, 6000 ether);
-        user.doOffer(3200 ether, mkr, 10 ether, weth);
-        user.doOffer(2800 ether, mkr, 10 ether, weth);
-        assertEq(mkr.balanceOf(this), 0); // Balance token to buy
+        mkr.transfer(address(user), 6000 ether);
+        user.doOffer(3200 ether, address(mkr), 10 ether, address(weth));
+        user.doOffer(2800 ether, address(mkr), 10 ether, address(weth));
+        assertEq(mkr.balanceOf(address(this)), 0); // Balance token to buy
         assertEq(address(this).balance, initialBalance); // Balance ETH
         uint expectedResult = 10 ether * 3200 / 3200 + 10 ether * 1400 / 2800;
         uint payAmt = address(this).balance;
         uint startGas = gasleft();
-        this.buyAllAmountPayEth.value(expectedResult)(OtcInterface(otc), TokenInterface(mkr), 4600 ether, TokenInterface(weth));
+        this.buyAllAmountPayEth.value(expectedResult)(address(otc), address(mkr), 4600 ether, address(weth));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         payAmt = payAmt - address(this).balance;
         assertEq(payAmt, expectedResult);
-        assertEq(mkr.balanceOf(this), 4600 ether); // Balance token bought
+        assertEq(mkr.balanceOf(address(this)), 4600 ether); // Balance token bought
         assertEq(address(this).balance, initialBalance - payAmt); // Balance ETH
     }
 
     function testProxyBuyAllBuyEth() public {
-        user.doDeposit.value(20 ether)(weth);
-        user.doOffer(10 ether, weth, 3200 ether, mkr);
-        user.doOffer(10 ether, weth, 2800 ether, mkr);
+        user.doDeposit.value(20 ether)(address(weth));
+        user.doOffer(10 ether, address(weth), 3200 ether, address(mkr));
+        user.doOffer(10 ether, address(weth), 2800 ether, address(mkr));
         uint initialBalance = address(this).balance;
         mkr.mint(4400 ether);
-        mkr.approve(oasisProxy, 4400 ether);
+        mkr.approve(address(oasisProxy), 4400 ether);
         assertEq(address(this).balance, initialBalance); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
+        assertEq(mkr.balanceOf(address(this)), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = gasleft();
-        uint payAmt = oasisProxy.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult);
+        uint payAmt = oasisProxy.buyAllAmountBuyEth(address(otc), address(weth), 15 ether, address(mkr), expectedResult);
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + 15 ether); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4400 ether - payAmt); // Balance token sold
+        assertEq(mkr.balanceOf(address(this)), 4400 ether - payAmt); // Balance token sold
     }
 
     function testProxyBuyAllBuyEth2() public {
-        user.doDeposit.value(20 ether)(weth);
-        user.doOffer(10 ether, weth, 3200 ether, mkr);
-        user.doOffer(10 ether, weth, 2800 ether, mkr);
+        user.doDeposit.value(20 ether)(address(weth));
+        user.doOffer(10 ether, address(weth), 3200 ether, address(mkr));
+        user.doOffer(10 ether, address(weth), 2800 ether, address(mkr));
         uint initialBalance = address(this).balance;
         mkr.mint(4400 ether);
-        mkr.approve(proxy, 4400 ether);
+        mkr.approve(address(proxy), 4400 ether);
         assertEq(address(this).balance, initialBalance); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4400 ether); // Balance token to sell
+        assertEq(mkr.balanceOf(address(this)), 4400 ether); // Balance token to sell
         uint expectedResult = 2800 ether * 10 / 10 + 3200 ether * 5 / 10;
         uint startGas = gasleft();
-        uint payAmt = uint(this.buyAllAmountBuyEth(OtcInterface(otc), TokenInterface(weth), 15 ether, TokenInterface(mkr), expectedResult));
+        uint payAmt = uint(this.buyAllAmountBuyEth(address(otc), address(weth), 15 ether, address(mkr), expectedResult));
         uint endGas = gasleft();
-        log_named_uint('Gas', startGas - endGas);
+        emit log_named_uint('Gas', startGas - endGas);
         assertEq(payAmt, expectedResult);
         assertEq(address(this).balance, initialBalance + 15 ether); // Balance ETH
-        assertEq(mkr.balanceOf(this), 4400 ether - payAmt); // Balance token sold
+        assertEq(mkr.balanceOf(address(this)), 4400 ether - payAmt); // Balance token sold
     }
 
-    function() public payable {}
+    function() external payable {}
 }

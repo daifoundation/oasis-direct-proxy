@@ -1,46 +1,85 @@
-pragma solidity ^0.4.16;
+pragma solidity ^0.5.12;
 
 import "./OasisDirectProxy.sol";
-import "ds-proxy/proxy.sol";
+
+contract FactoryLike {
+    function build(address) public returns (address payable);
+}
 
 contract ProxyCreationAndExecute is OasisDirectProxy {
-    TokenInterface wethToken;
+    address wethToken;
 
-    function ProxyCreationAndExecute(address wethToken_) {
-        wethToken = TokenInterface(wethToken_);
+    constructor(address wethToken_) public {
+        wethToken = wethToken_;
     }
 
-    function createAndSellAllAmount(DSProxyFactory factory, OtcInterface otc, TokenInterface payToken, uint payAmt, TokenInterface buyToken, uint minBuyAmt) public returns (DSProxy proxy, uint buyAmt) {
-        proxy = factory.build(msg.sender);
-        buyAmt = sellAllAmount(otc, payToken, payAmt, buyToken, minBuyAmt);
+    function createAndSellAllAmount(
+        address factory,
+        address otc,
+        address payToken,
+        uint payAmt,
+        address buyToken,
+        uint minBuyAmt
+    ) public returns (address payable proxy, uint buyAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
+        buyAmt = sellAllAmount(otc,payToken, payAmt, buyToken, minBuyAmt);
     }
 
-    function createAndSellAllAmountPayEth(DSProxyFactory factory, OtcInterface otc, TokenInterface buyToken, uint minBuyAmt) public payable returns (DSProxy proxy, uint buyAmt) {
-        proxy = factory.build(msg.sender);
+    function createAndSellAllAmountPayEth(
+        address factory,
+        address otc,
+        address buyToken,
+        uint minBuyAmt
+    ) public payable returns (address payable proxy, uint buyAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
         buyAmt = sellAllAmountPayEth(otc, wethToken, buyToken, minBuyAmt);
     }
 
-    function createAndSellAllAmountBuyEth(DSProxyFactory factory, OtcInterface otc, TokenInterface payToken, uint payAmt, uint minBuyAmt) public returns (DSProxy proxy, uint wethAmt) {
-        proxy = factory.build(msg.sender);
+    function createAndSellAllAmountBuyEth(
+        address factory,
+        address otc,
+        address payToken,
+        uint payAmt,
+        uint minBuyAmt
+    ) public returns (address payable proxy, uint wethAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
         wethAmt = sellAllAmountBuyEth(otc, payToken, payAmt, wethToken, minBuyAmt);
     }
 
-    function createAndBuyAllAmount(DSProxyFactory factory, OtcInterface otc, TokenInterface buyToken, uint buyAmt, TokenInterface payToken, uint maxPayAmt) public returns (DSProxy proxy, uint payAmt) {
-        proxy = factory.build(msg.sender);
+    function createAndBuyAllAmount(
+        address factory,
+        address otc,
+        address buyToken,
+        uint buyAmt,
+        address payToken,
+        uint maxPayAmt
+    ) public returns (address payable proxy, uint payAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
         payAmt = buyAllAmount(otc, buyToken, buyAmt, payToken, maxPayAmt);
     }
 
-    function createAndBuyAllAmountPayEth(DSProxyFactory factory, OtcInterface otc, TokenInterface buyToken, uint buyAmt) public payable returns (DSProxy proxy, uint wethAmt) {
-        proxy = factory.build(msg.sender);
+    function createAndBuyAllAmountPayEth(
+        address factory,
+        address otc,
+        address buyToken,
+        uint buyAmt
+    ) public payable returns (address payable proxy, uint wethAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
         wethAmt = buyAllAmountPayEth(otc, buyToken, buyAmt, wethToken);
     }
 
-    function createAndBuyAllAmountBuyEth(DSProxyFactory factory, OtcInterface otc, uint wethAmt, TokenInterface payToken, uint maxPayAmt) public returns (DSProxy proxy, uint payAmt) {
-        proxy = factory.build(msg.sender);
+    function createAndBuyAllAmountBuyEth(
+        address factory,
+        address otc,
+        uint wethAmt,
+        address payToken,
+        uint maxPayAmt
+    ) public returns (address payable proxy, uint payAmt) {
+        proxy = FactoryLike(factory).build(msg.sender);
         payAmt = buyAllAmountBuyEth(otc, wethToken, wethAmt, payToken, maxPayAmt);
     }
 
-    function() public payable {
-        require(msg.sender == address(wethToken));
+    function() external payable {
+        require(msg.sender == address(wethToken), "");
     }
 }
